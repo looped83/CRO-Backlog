@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRO Hypothesis Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .spinner { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .step-done  { background:#f0fdf4; color:#166534; }
+  .step-active{ background:#eef2ff; color:#3730a3; }
+  .step-wait  { background:#f9fafb; color:#9ca3af; }
+  details summary::-webkit-details-marker { display:none; }
+  details summary::marker { display:none; }
+  .ice-bar { transition: width 0.5s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  .card-in { animation: fadeIn 0.3s ease forwards; }
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 font-sans">
+
+<!-- ═══════════════════════════════════════ SCREENS ═══════════════════════════════════════ -->
+
+<!-- SCREEN: INPUT -->
+<div id="screen-input" class="min-h-screen flex flex-col items-center justify-center p-6">
+  <div class="w-full max-w-xl space-y-8">
+
+    <!-- Hero -->
+    <div class="text-center space-y-3">
+      <span class="inline-block text-xs font-semibold text-indigo-600 bg-indigo-100 px-3 py-1 rounded-full uppercase tracking-wide">
+        AI-Powered · No Server · Single File
+      </span>
+      <h1 class="text-4xl font-extrabold text-gray-900 tracking-tight">
+        CRO Hypothesis<br /><span class="text-indigo-600">Generator</span>
+      </h1>
+      <p class="text-gray-500 text-base max-w-sm mx-auto">
+        Paste a landing page URL — get a prioritized CRO backlog powered by Claude AI.
+      </p>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-lg p-7 space-y-5">
+
+      <!-- API Key -->
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center justify-between">
+          Anthropic API Key
+          <span id="key-saved-badge" class="hidden text-green-600 font-medium normal-case">✓ Saved</span>
+        </label>
+        <div class="flex gap-2">
+          <input id="api-key" type="password" placeholder="sk-ant-..."
+            class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button onclick="saveKey()" class="px-3 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors">Save</button>
+        </div>
+        <p class="text-xs text-gray-400">Stored in your browser's localStorage only. Never sent anywhere else.</p>
+      </div>
+
+      <hr class="border-gray-100" />
+
+      <!-- URL -->
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Website URL</label>
+        <input id="url-input" type="text" placeholder="https://yoursite.com/landing-page"
+          class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          onkeydown="if(event.key==='Enter')startAnalysis()" />
+        <p id="url-error" class="text-xs text-red-500 hidden"></p>
+      </div>
+
+      <!-- Optional -->
+      <details class="group">
+        <summary class="text-xs font-medium text-indigo-600 cursor-pointer select-none flex items-center gap-1 w-fit">
+          <span class="group-open:rotate-90 inline-block transition-transform">▸</span>
+          Optional context
+        </summary>
+        <div class="mt-3 space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-xs text-gray-500 font-medium">Page Type</label>
+              <select id="page-type" class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                <option value="">— optional —</option>
+                <option>SaaS landing page</option>
+                <option>Lead generation page</option>
+                <option>Product page</option>
+                <option>Pricing page</option>
+                <option>Home page</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs text-gray-500 font-medium">Conversion Goal</label>
+              <select id="conv-goal" class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                <option value="">— optional —</option>
+                <option>Free trial signup</option>
+                <option>Demo request</option>
+                <option>Lead form submission</option>
+                <option>Paid subscription</option>
+                <option>Contact sales</option>
+              </select>
+            </div>
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-gray-500 font-medium">Target Audience</label>
+            <input id="audience" type="text" placeholder="e.g. B2B marketers at mid-size companies"
+              class="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+      </details>
+
+      <button onclick="startAnalysis()" id="analyze-btn"
+        class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold tracking-wide transition-colors shadow-sm disabled:opacity-50">
+        Analyze Page →
+      </button>
+    </div>
+
+    <p class="text-center text-xs text-gray-400">
+      Crawl via <a href="https://allorigins.win" target="_blank" class="underline">allorigins.win</a> proxy · Claude claude-sonnet-4-20250514 · No data stored
+    </p>
+  </div>
+</div>
+
+<!-- SCREEN: LOADING -->
+<div id="screen-loading" class="hidden min-h-screen flex items-center justify-center p-6">
+  <div class="w-full max-w-sm space-y-6">
+    <div class="text-center space-y-1">
+      <p class="text-xs text-gray-400 uppercase tracking-wide">Analyzing</p>
+      <p id="loading-url" class="text-sm font-mono text-gray-700 truncate"></p>
+    </div>
+    <div id="steps-list" class="space-y-2"></div>
+    <p class="text-center text-xs text-gray-400">This may take up to 30 seconds…</p>
+  </div>
+</div>
+
+<!-- SCREEN: ERROR -->
+<div id="screen-error" class="hidden min-h-screen flex items-center justify-center p-6">
+  <div class="bg-white rounded-2xl border border-red-200 shadow-lg p-8 max-w-md w-full space-y-4 text-center">
+    <div class="text-4xl">⚠️</div>
+    <h2 class="font-bold text-gray-900 text-lg">Analysis Failed</h2>
+    <p id="error-msg" class="text-sm text-red-600 leading-relaxed"></p>
+    <button onclick="showScreen('input')" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors">
+      ← Try Again
+    </button>
+  </div>
+</div>
+
+<!-- SCREEN: RESULTS -->
+<div id="screen-results" class="hidden min-h-screen">
+
+  <!-- Sticky header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <button onclick="showScreen('input')" class="text-gray-400 hover:text-gray-600 flex-shrink-0" title="New analysis">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        </button>
+        <p id="result-url" class="text-xs text-gray-500 font-mono truncate"></p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button onclick="exportMarkdown()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+          ↓ Export MD
+        </button>
+        <button onclick="showScreen('input')" class="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">
+          New Analysis
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-5xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- Score card -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+        <div class="text-center flex-shrink-0 w-32">
+          <div id="score-number" class="text-6xl font-extrabold tabular-nums"></div>
+          <div class="text-xs text-gray-400 mt-1">/ 100</div>
+          <div id="score-label" class="mt-2 text-xs font-semibold px-2 py-0.5 rounded-full inline-block"></div>
+        </div>
+        <div class="flex-1 space-y-2">
+          <h2 class="font-semibold text-gray-900">Overall CRO Score</h2>
+          <p id="summary-text" class="text-sm text-gray-600 leading-relaxed"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-gray-700">Filter</h3>
+        <span id="filter-count" class="text-xs text-gray-400"></span>
+      </div>
+      <div class="space-y-2" id="filter-rows"></div>
+      <button id="clear-filters-btn" onclick="clearFilters()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hidden">
+        Clear all filters
+      </button>
+    </div>
+
+    <!-- Hypotheses -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">
+          Hypothesis Backlog
+          <span id="hyp-count" class="ml-1 text-sm font-normal text-gray-400"></span>
+        </h2>
+        <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <button id="view-cards" onclick="setView('cards')" class="px-2.5 py-1 rounded-md text-xs font-medium bg-white text-gray-900 shadow-sm transition-colors">Cards</button>
+          <button id="view-table" onclick="setView('table')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors">Table</button>
+        </div>
+      </div>
+      <div id="hypotheses-container"></div>
+    </div>
+
+    <!-- Page snapshot -->
+    <details class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <summary class="px-6 py-4 cursor-pointer text-sm font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between select-none">
+        Page Data Snapshot
+        <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </summary>
+      <div id="page-snapshot" class="px-6 pb-6 pt-2 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm"></div>
+    </details>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ JAVASCRIPT ═══════════════════════════════════════ -->
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let currentAnalysis = null;
+let currentView = 'cards';
+let filters = { area: 'All', impact: 'All', effort: 'All', confidence: 'All' };
+
+// ── Screen management ────────────────────────────────────────────────────────
+function showScreen(name) {
+  ['input','loading','error','results'].forEach(s =>
+    document.getElementById('screen-'+s).classList.toggle('hidden', s !== name)
+  );
+}
+
+// ── API Key ──────────────────────────────────────────────────────────────────
+(function initKey() {
+  const k = localStorage.getItem('anthropic_api_key');
+  if (k) {
+    document.getElementById('api-key').value = k;
+    document.getElementById('key-saved-badge').classList.remove('hidden');
+  }
+})();
+
+function saveKey() {
+  const k = document.getElementById('api-key').value.trim();
+  if (k) {
+    localStorage.setItem('anthropic_api_key', k);
+    document.getElementById('key-saved-badge').classList.remove('hidden');
+  }
+}
+
+// ── Loading steps ────────────────────────────────────────────────────────────
+const STEPS = [
+  { id:'fetch',      label:'Fetching page' },
+  { id:'extract',    label:'Extracting content' },
+  { id:'detect',     label:'Detecting elements' },
+  { id:'generate',   label:'Generating hypotheses' },
+  { id:'prioritize', label:'Prioritizing backlog' },
+];
+
+function renderSteps(activeIndex, doneSet) {
+  document.getElementById('steps-list').innerHTML = STEPS.map((s, i) => {
+    const done   = doneSet.has(i);
+    const active = i === activeIndex && !done;
+    const cls    = done ? 'step-done' : active ? 'step-active' : 'step-wait';
+    const icon   = done
+      ? `<svg class="w-5 h-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`
+      : active
+      ? `<div class="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full spinner flex-shrink-0"></div>`
+      : `<div class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 ml-1"></div>`;
+    return `<div class="flex items-center gap-3 p-3 rounded-lg ${cls}">
+              ${icon}
+              <span class="text-sm font-medium">${s.label}</span>
+            </div>`;
+  }).join('');
+}
+
+// ── Crawl via allorigins.win ─────────────────────────────────────────────────
+async function fetchPage(url) {
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const res = await fetch(proxyUrl);
+  if (!res.ok) throw new Error(`Proxy error: HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.contents) throw new Error('Proxy returned empty response');
+  if (data.contents.length < 100) throw new Error('Page appears to be empty or blocked');
+  return data.contents;
+}
+
+// ── HTML Extraction (DOMParser) ──────────────────────────────────────────────
+function extractPageData(html, url) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  // Remove noise
+  doc.querySelectorAll('script,style,noscript,[aria-hidden=true]').forEach(el => el.remove());
+
+  const getText = el => (el ? el.textContent.replace(/\s+/g,' ').trim() : '');
+
+  const title = getText(doc.querySelector('title'));
+  const metaDesc =
+    doc.querySelector('meta[name="description"]')?.content ||
+    doc.querySelector('meta[property="og:description"]')?.content || null;
+  const canonical = doc.querySelector('link[rel="canonical"]')?.href || null;
+  const hasNoindex = (doc.querySelector('meta[name="robots"]')?.content||'').toLowerCase().includes('noindex');
+
+  const h1 = [...doc.querySelectorAll('h1')].map(getText).filter(Boolean);
+  const h2h3 = [...doc.querySelectorAll('h2,h3')].map(getText).filter(Boolean).slice(0,20);
+
+  // Hero
+  const heroEl = doc.querySelector('section,[class*="hero"],main > *');
+  const heroText = heroEl ? getText(heroEl).slice(0, 500) : null;
+
+  // CTAs
+  const CTA_KW = ['get started','start free','try free','sign up','get access','get demo',
+    'book demo','request demo','schedule demo','contact us','contact sales','talk to sales',
+    'buy now','purchase','subscribe','download','learn more','see pricing','view pricing',
+    'start trial','free trial','claim','join','register'];
+
+  const ctaTexts = [], ctaLinks = [];
+  doc.querySelectorAll('a,button').forEach(el => {
+    const text = getText(el).toLowerCase();
+    const raw  = getText(el);
+    const cls  = (el.className||'').toLowerCase();
+    const isCTA = CTA_KW.some(k => text.includes(k)) ||
+                  ['cta','btn','button','primary'].some(c => cls.includes(c));
+    if (isCTA && raw && raw.length < 100) {
+      ctaTexts.push(raw);
+      if (el.href) ctaLinks.push(el.href);
+    }
+  });
+  const uniqCta = [...new Set(ctaTexts)].slice(0,15);
+  const uniqCtaLinks = [...new Set(ctaLinks)].slice(0,15);
+
+  // Nav
+  const navLinks = [...new Set(
+    [...doc.querySelectorAll('nav a,header a')]
+      .map(getText).filter(t => t && t.length < 60)
+  )].slice(0,20);
+
+  // Forms
+  const formFields = [...new Set(
+    [...doc.querySelectorAll('input,select,textarea')]
+      .map(el => el.placeholder || el.getAttribute('aria-label') || el.name || el.type || '')
+      .filter(v => v && v !== 'hidden')
+  )].slice(0,20);
+
+  // Body text
+  const bodyText = getText(doc.body).slice(0, 8000);
+  const wordCount = bodyText.split(/\s+/).filter(Boolean).length;
+
+  // Trust patterns
+  const TRUST_RE = [
+    /\btrusted by\b/i, /\b\d[\d,]+\s*(customers?|users?|companies|teams)\b/i,
+    /\b(soc\s?2|gdpr|iso\s?27001|hipaa)\b/i, /\b(ssl|https|secure|encrypted)\b/i,
+    /\b(award|certified|featured in|as seen in|backed by)\b/i,
+    /\b(money.?back|satisfaction guarantee)\b/i,
+  ];
+  const trustIndicators = TRUST_RE
+    .map(r => { const m = bodyText.match(r); return m ? m[0] : null; })
+    .filter(Boolean);
+  ['[class*="testimonial"]','[class*="review"]','[class*="logo"]','[class*="partner"]','blockquote']
+    .forEach(sel => { if (doc.querySelector(sel)) trustIndicators.push(`${sel} present`); });
+
+  // Pricing
+  const priceMatches = bodyText.match(
+    /\$[\d,]+(?:\.\d{2})?(?:\s*\/\s*(?:mo|month|yr|year|user|seat))?|\bfree\b|\bpro\b|\benterprise\b|\bstarter\b|\bpremium\b/gi
+  ) || [];
+  const pricingMentions = [...new Set(priceMatches)].slice(0,10);
+
+  // Risk reducers
+  const RISK_RE = [
+    /\bno\s+credit\s+card\b/i, /\bfree\s+trial\b/i, /\bcancel\s+anytime\b/i,
+    /\b(30|14|7|60|90)[- ]day\s+(free\s+trial|money.?back|trial|guarantee)\b/i,
+    /\bmoney.?back\s+guarantee\b/i, /\bno\s+contract\b/i, /\bfree\s+forever\b/i,
+    /\bno\s+setup\s+fee\b/i,
+  ];
+  const riskReducers = RISK_RE.map(r => { const m = bodyText.match(r); return m ? m[0] : null; }).filter(Boolean);
+
+  // Social proof
+  const socialProof = [...doc.querySelectorAll('[class*="testimonial"],[class*="review"],blockquote')]
+    .map(el => getText(el).slice(0,200)).filter(Boolean).slice(0,5);
+
+  const hasFaq = !!doc.querySelector('[class*="faq"],[id*="faq"]') ||
+                 bodyText.toLowerCase().includes('frequently asked') ||
+                 bodyText.toLowerCase().includes('faq');
+
+  // Links
+  let baseHost = '';
+  try { baseHost = new URL(url).hostname; } catch {}
+  const internalLinks = [], externalLinks = [];
+  doc.querySelectorAll('a[href]').forEach(el => {
+    const href = el.getAttribute('href')||'';
+    if (href.startsWith('http')) {
+      try {
+        const h = new URL(href).hostname;
+        (h === baseHost ? internalLinks : externalLinks).push(href);
+      } catch {}
+    } else if (href.startsWith('/')) internalLinks.push(href);
+  });
+
+  return {
+    url, title, meta_description: metaDesc, canonical_url: canonical,
+    h1, h2_h3: h2h3, hero_text: heroText,
+    cta_texts: uniqCta, cta_links: uniqCtaLinks, cta_count: uniqCta.length,
+    nav_links: navLinks, form_fields: formFields,
+    trust_indicators: [...new Set(trustIndicators)].slice(0,15),
+    pricing_mentions: pricingMentions, risk_reducers: riskReducers,
+    social_proof: socialProof, has_faq: hasFaq,
+    body_copy: bodyText.slice(0,5000), word_count: wordCount,
+    internal_links: [...new Set(internalLinks)].slice(0,30),
+    external_links: [...new Set(externalLinks)].slice(0,20),
+    http_status: 200, load_success: true, has_noindex: hasNoindex,
+  };
+}
+
+// ── Claude API call ──────────────────────────────────────────────────────────
+async function callClaude(apiKey, pageData, pageType, convGoal, audience) {
+  const ctx = [
+    pageType  ? `Page type: ${pageType}`          : null,
+    convGoal  ? `Conversion goal: ${convGoal}`     : null,
+    audience  ? `Target audience: ${audience}`     : null,
+  ].filter(Boolean).join('\n');
+
+  const userMsg = `Analyze this page for CRO opportunities.
+${ctx ? '\nCONTEXT:\n'+ctx+'\n' : ''}
+EXTRACTED PAGE DATA:
+URL: ${pageData.url}
+Title: ${pageData.title}
+Meta description: ${pageData.meta_description || 'MISSING'}
+H1 headings: ${pageData.h1.join(' | ') || 'NONE'}
+H2/H3 headings: ${pageData.h2_h3.slice(0,10).join(' | ') || 'NONE'}
+Hero text: ${(pageData.hero_text||'').slice(0,300) || 'Not detected'}
+CTA texts (${pageData.cta_count}): ${pageData.cta_texts.slice(0,8).join(' | ') || 'NONE DETECTED'}
+Form fields: ${pageData.form_fields.join(', ') || 'NONE'}
+Trust indicators: ${pageData.trust_indicators.join(', ') || 'NONE'}
+Pricing mentions: ${pageData.pricing_mentions.join(', ') || 'NONE'}
+Risk reducers: ${pageData.risk_reducers.join(', ') || 'NONE'}
+Social proof snippets: ${pageData.social_proof.slice(0,3).join(' | ') || 'NONE'}
+Has FAQ: ${pageData.has_faq}
+Word count: ${pageData.word_count}
+HTTP status: ${pageData.http_status}
+Has noindex: ${pageData.has_noindex}
+Body copy excerpt: ${pageData.body_copy.slice(0,1500)}
+
+Generate your CRO hypothesis backlog now. Return ONLY valid JSON.`;
+
+  const systemPrompt = `You are a world-class CRO strategist specializing in SaaS and lead-generation landing pages.
+
+Respond ONLY with valid JSON matching this schema exactly — no markdown, no explanation:
+
+{
+  "overall_score": number (0-100),
+  "summary": string (2-3 sentence executive summary),
+  "hypotheses": [
+    {
+      "id": string,
+      "title": string,
+      "area": "Messaging"|"CTA"|"Trust"|"UX Friction"|"Form"|"Social Proof"|"Risk Reduction"|"Information Architecture"|"Pricing"|"Objection Handling",
+      "observed_issue": string,
+      "hypothesis": string ("If we [change], then [outcome] because [reason]"),
+      "why_it_matters": string,
+      "recommended_test": string,
+      "example_variant_copy": string|null,
+      "expected_impact": "low"|"medium"|"high",
+      "confidence": "low"|"medium"|"high",
+      "effort": "low"|"medium"|"high",
+      "ice_score": number (1-10),
+      "priority_rank": number,
+      "affected_page_element": string,
+      "evidence_from_page": string
+    }
+  ]
+}
+
+Rules: 6–12 hypotheses minimum. Be specific. Base all observations on the actual extracted data. Sort by priority_rank ascending (1 = highest priority).`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-allow-browser': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMsg }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Claude API error ${res.status}: ${err.error?.message || res.statusText}`);
+  }
+
+  const data = await res.json();
+  let raw = data.content?.[0]?.text || '';
+  raw = raw.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+
+  let parsed;
+  try { parsed = JSON.parse(raw); }
+  catch { throw new Error('Claude returned invalid JSON. Please retry.'); }
+
+  if (!parsed.hypotheses || !Array.isArray(parsed.hypotheses)) {
+    throw new Error('Unexpected response structure from Claude.');
+  }
+
+  parsed.hypotheses.sort((a, b) => a.priority_rank - b.priority_rank);
+  return parsed;
+}
+
+// ── Main analysis flow ───────────────────────────────────────────────────────
+async function startAnalysis() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const url    = document.getElementById('url-input').value.trim();
+  const norm   = url.startsWith('http') ? url : 'https://'+url;
+  const errEl  = document.getElementById('url-error');
+
+  errEl.classList.add('hidden');
+
+  if (!apiKey) { showError('Please enter your Anthropic API key first.'); return; }
+  if (!url)    { errEl.textContent='Please enter a URL.'; errEl.classList.remove('hidden'); return; }
+  try { new URL(norm); } catch { errEl.textContent='Invalid URL.'; errEl.classList.remove('hidden'); return; }
+
+  // Save key
+  localStorage.setItem('anthropic_api_key', apiKey);
+
+  showScreen('loading');
+  document.getElementById('loading-url').textContent = norm.length>55 ? norm.slice(0,52)+'...' : norm;
+
+  const done = new Set();
+  let step = 0;
+  renderSteps(step, done);
+
+  function advanceTo(i) {
+    if (i > 0) { done.add(i-1); }
+    step = i;
+    renderSteps(step, done);
+  }
+
+  try {
+    // Step 0 – Fetch
+    advanceTo(0);
+    const html = await fetchPage(norm);
+
+    // Step 1 – Extract
+    advanceTo(1);
+    await sleep(300);
+    const pageData = extractPageData(html, norm);
+
+    // Step 2 – Detect
+    advanceTo(2);
+    await sleep(200);
+
+    // Step 3 – Generate
+    advanceTo(3);
+    const pageType = document.getElementById('page-type').value;
+    const convGoal = document.getElementById('conv-goal').value;
+    const audience = document.getElementById('audience').value.trim();
+    const aiResult = await callClaude(apiKey, pageData, pageType, convGoal, audience);
+
+    // Step 4 – Prioritize
+    advanceTo(4);
+    await sleep(300);
+    done.add(4);
+    renderSteps(4, done);
+
+    currentAnalysis = {
+      id: crypto.randomUUID(),
+      url: norm, page_type: pageType, conversion_goal: convGoal, target_audience: audience,
+      extracted_data: pageData, ai_analysis: aiResult,
+      overall_score: aiResult.overall_score, created_at: new Date().toISOString(),
+    };
+
+    filters = { area:'All', impact:'All', effort:'All', confidence:'All' };
+    renderResults();
+    showScreen('results');
+
+  } catch (err) {
+    showError(err.message || 'Unknown error occurred.');
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function showError(msg) {
+  document.getElementById('error-msg').textContent = msg;
+  showScreen('error');
+}
+
+// ── Render results ───────────────────────────────────────────────────────────
+const AREA_COLORS = {
+  'Messaging':'bg-blue-100 text-blue-800','CTA':'bg-purple-100 text-purple-800',
+  'Trust':'bg-green-100 text-green-800','UX Friction':'bg-orange-100 text-orange-800',
+  'Form':'bg-pink-100 text-pink-800','Social Proof':'bg-teal-100 text-teal-800',
+  'Risk Reduction':'bg-emerald-100 text-emerald-800',
+  'Information Architecture':'bg-cyan-100 text-cyan-800',
+  'Pricing':'bg-yellow-100 text-yellow-800','Objection Handling':'bg-red-100 text-red-800',
+};
+const LEVEL_COLORS = { high:'text-red-600 bg-red-50', medium:'text-yellow-600 bg-yellow-50', low:'text-green-600 bg-green-50' };
+const LEVEL_DOTS   = { high:'🔴', medium:'🟡', low:'🟢' };
+
+function levelBadge(level) {
+  return `<span class="text-xs font-medium px-2 py-0.5 rounded-full capitalize ${LEVEL_COLORS[level]||''}">${level}</span>`;
+}
+
+function renderResults() {
+  const { ai_analysis: a, extracted_data: ex, url } = currentAnalysis;
+
+  document.getElementById('result-url').textContent = url.length>60 ? url.slice(0,57)+'...' : url;
+
+  // Score
+  const scoreEl = document.getElementById('score-number');
+  const s = a.overall_score;
+  const color = s>=70?'#16a34a':s>=45?'#d97706':'#dc2626';
+  const lbl   = s>=70?'Good':s>=45?'Needs Work':'Critical Issues';
+  scoreEl.textContent = s;
+  scoreEl.style.color = color;
+  document.getElementById('score-label').textContent = lbl;
+  document.getElementById('score-label').style.cssText = `color:${color};background:${color}20`;
+  document.getElementById('summary-text').textContent = a.summary;
+
+  buildFilterBar(a.hypotheses);
+  renderHypotheses();
+  renderSnapshot(ex);
+}
+
+function getFilteredHypotheses() {
+  return currentAnalysis.ai_analysis.hypotheses.filter(h => {
+    if (filters.area !== 'All' && h.area !== filters.area) return false;
+    if (filters.impact !== 'All' && h.expected_impact !== filters.impact) return false;
+    if (filters.effort !== 'All' && h.effort !== filters.effort) return false;
+    if (filters.confidence !== 'All' && h.confidence !== filters.confidence) return false;
+    return true;
+  });
+}
+
+function buildFilterBar(allH) {
+  const AREAS = ['All','Messaging','CTA','Trust','UX Friction','Form','Social Proof',
+                 'Risk Reduction','Information Architecture','Pricing','Objection Handling'];
+  const LEVELS = ['All','high','medium','low'];
+  const rows = [
+    { label:'Area',       key:'area',       options:AREAS  },
+    { label:'Impact',     key:'impact',     options:LEVELS },
+    { label:'Effort',     key:'effort',     options:LEVELS },
+    { label:'Confidence', key:'confidence', options:LEVELS },
+  ];
+  document.getElementById('filter-rows').innerHTML = rows.map(r => `
+    <div class="flex flex-wrap items-center gap-1.5">
+      <span class="text-xs font-medium text-gray-400 uppercase tracking-wide w-20 flex-shrink-0">${r.label}</span>
+      ${r.options.map(opt => `
+        <button onclick="setFilter('${r.key}','${opt}')" id="filter-${r.key}-${opt}"
+          class="px-2.5 py-1 rounded-full text-xs font-medium transition-colors
+                 ${filters[r.key]===opt?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+          ${opt==='All'?'All':opt.charAt(0).toUpperCase()+opt.slice(1)}
+        </button>`).join('')}
+    </div>`).join('');
+  updateFilterCount(allH.length);
+}
+
+function setFilter(key, value) {
+  filters[key] = value;
+  // Rebuild button states without full re-render
+  document.querySelectorAll(`[id^="filter-${key}-"]`).forEach(btn => {
+    const v = btn.id.replace(`filter-${key}-`,'');
+    btn.className = btn.className.replace(/bg-indigo-600 text-white|bg-gray-100 text-gray-600 hover:bg-gray-200/g,'').trim();
+    btn.classList.add(...(v===value ? ['bg-indigo-600','text-white'] : ['bg-gray-100','text-gray-600','hover:bg-gray-200']));
+  });
+  const hasActive = Object.values(filters).some(v => v !== 'All');
+  document.getElementById('clear-filters-btn').classList.toggle('hidden', !hasActive);
+  updateFilterCount(currentAnalysis.ai_analysis.hypotheses.length);
+  renderHypotheses();
+}
+
+function clearFilters() {
+  filters = { area:'All', impact:'All', effort:'All', confidence:'All' };
+  buildFilterBar(currentAnalysis.ai_analysis.hypotheses);
+  renderHypotheses();
+}
+
+function updateFilterCount(total) {
+  const filtered = getFilteredHypotheses().length;
+  document.getElementById('filter-count').textContent =
+    filtered===total ? `${total} hypotheses` : `${filtered} of ${total}`;
+  document.getElementById('hyp-count').textContent = `(${filtered})`;
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('view-cards').className =
+    v==='cards' ? 'px-2.5 py-1 rounded-md text-xs font-medium bg-white text-gray-900 shadow-sm transition-colors'
+                : 'px-2.5 py-1 rounded-md text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors';
+  document.getElementById('view-table').className =
+    v==='table' ? 'px-2.5 py-1 rounded-md text-xs font-medium bg-white text-gray-900 shadow-sm transition-colors'
+                : 'px-2.5 py-1 rounded-md text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors';
+  renderHypotheses();
+}
+
+function renderHypotheses() {
+  const hyps = getFilteredHypotheses();
+  const container = document.getElementById('hypotheses-container');
+  if (!hyps.length) {
+    container.innerHTML = `<div class="text-center py-16 text-gray-400 text-sm">No hypotheses match the current filters.</div>`;
+    return;
+  }
+  if (currentView === 'table') {
+    container.innerHTML = renderTable(hyps);
+  } else {
+    container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${hyps.map((h,i)=>renderCard(h,i+1)).join('')}</div>`;
+  }
+}
+
+function renderCard(h, rank) {
+  const ac = AREA_COLORS[h.area]||'bg-gray-100 text-gray-700';
+  return `
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow card-in">
+    <div class="p-4 space-y-3">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold flex-shrink-0">${rank}</div>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-sm font-semibold text-gray-900 leading-snug">${esc(h.title)}</h3>
+          <div class="mt-1 flex flex-wrap items-center gap-1.5">
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full ${ac}">${h.area}</span>
+            <span class="text-xs text-gray-500">ICE <strong class="text-gray-700">${h.ice_score}</strong>/10</span>
+            <span class="text-xs text-gray-400">·</span>
+            <span class="text-xs text-gray-400">${esc(h.affected_page_element)}</span>
+          </div>
+        </div>
+        <button onclick="copyHypothesis('${h.id}')" title="Copy" class="p-1.5 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 flex-shrink-0">
+          <svg id="copy-icon-${h.id}" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        </button>
+      </div>
+      <div class="flex gap-3 text-xs">
+        <div><div class="text-gray-400 uppercase tracking-wide" style="font-size:10px">Impact</div>${levelBadge(h.expected_impact)}</div>
+        <div><div class="text-gray-400 uppercase tracking-wide" style="font-size:10px">Confidence</div>${levelBadge(h.confidence)}</div>
+        <div><div class="text-gray-400 uppercase tracking-wide" style="font-size:10px">Effort</div>${levelBadge(h.effort)}</div>
+      </div>
+      <p class="text-sm text-gray-600 leading-relaxed">${esc(h.observed_issue)}</p>
+    </div>
+    <button onclick="toggleCard('detail-${h.id}',this)"
+      class="w-full px-4 py-2 bg-gray-50 hover:bg-gray-100 text-xs font-medium text-gray-500 flex items-center justify-center gap-1 border-t border-gray-100">
+      ▼ Show full hypothesis
+    </button>
+    <div id="detail-${h.id}" class="hidden p-4 space-y-4 border-t border-gray-100 bg-gray-50">
+      <div class="space-y-1"><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Hypothesis</h4><p class="text-sm text-gray-700 italic leading-relaxed">${esc(h.hypothesis)}</p></div>
+      <div class="space-y-1"><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Why It Matters</h4><p class="text-sm text-gray-700 leading-relaxed">${esc(h.why_it_matters)}</p></div>
+      <div class="space-y-1"><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recommended Test</h4><p class="text-sm text-gray-700 leading-relaxed">${esc(h.recommended_test)}</p></div>
+      ${h.example_variant_copy ? `<div class="space-y-1"><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Example Copy</h4><blockquote class="border-l-2 border-indigo-400 pl-3 text-sm text-gray-700 italic bg-indigo-50 p-2 rounded-r-md">${esc(h.example_variant_copy)}</blockquote></div>` : ''}
+      <div class="space-y-1"><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Evidence from Page</h4><p class="text-sm text-gray-600 leading-relaxed">${esc(h.evidence_from_page)}</p></div>
+    </div>
+  </div>`;
+}
+
+function renderTable(hyps) {
+  return `<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+    <table class="min-w-full divide-y divide-gray-200 bg-white text-sm">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">#</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Title</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Area</th>
+          <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">ICE</th>
+          <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Impact</th>
+          <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Effort</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        ${hyps.map(h => `
+          <tr class="hover:bg-indigo-50 cursor-pointer transition-colors" onclick="setView('cards')">
+            <td class="px-4 py-3 text-gray-400 font-mono text-xs">${h.priority_rank}</td>
+            <td class="px-4 py-3">
+              <div class="font-medium text-gray-900">${esc(h.title)}</div>
+              <div class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">${esc(h.observed_issue)}</div>
+            </td>
+            <td class="px-4 py-3 hidden sm:table-cell"><span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">${h.area}</span></td>
+            <td class="px-4 py-3 text-center"><span class="font-bold text-indigo-600">${h.ice_score}</span><span class="text-gray-300 text-xs">/10</span></td>
+            <td class="px-4 py-3 text-center hidden md:table-cell">${LEVEL_DOTS[h.expected_impact]||''}</td>
+            <td class="px-4 py-3 text-center hidden md:table-cell">${LEVEL_DOTS[h.effort]||''}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function toggleCard(id, btn) {
+  const el = document.getElementById(id);
+  const hidden = el.classList.toggle('hidden');
+  btn.textContent = hidden ? '▼ Show full hypothesis' : '▲ Show less';
+}
+
+function renderSnapshot(ex) {
+  const fields = [
+    ['Title', ex.title||'—'], ['H1', ex.h1[0]||'MISSING'],
+    ['Meta Description', ex.meta_description||'MISSING'],
+    ['CTA Count', String(ex.cta_count)], ['Word Count', String(ex.word_count)],
+    ['Has FAQ', ex.has_faq?'Yes':'No'],
+    ['Risk Reducers', ex.risk_reducers.join(', ')||'None'],
+    ['Trust Signals', ex.trust_indicators.length+' detected'],
+    ['Social Proof', ex.social_proof.length+' items'],
+    ['Form Fields', ex.form_fields.join(', ')||'None'],
+    ['HTTP Status', String(ex.http_status)],
+    ['Noindex', ex.has_noindex?'Yes':'No'],
+  ];
+  document.getElementById('page-snapshot').innerHTML = fields.map(([l,v]) =>
+    `<div class="space-y-0.5">
+       <dt class="text-xs text-gray-400 uppercase tracking-wide">${l}</dt>
+       <dd class="text-sm text-gray-700 font-medium truncate" title="${esc(v)}">${esc(v)}</dd>
+     </div>`
+  ).join('');
+}
+
+// ── Copy hypothesis ──────────────────────────────────────────────────────────
+async function copyHypothesis(id) {
+  const h = currentAnalysis.ai_analysis.hypotheses.find(x => x.id === id);
+  if (!h) return;
+  const text = [
+    `# ${h.title}`,``,`**Area:** ${h.area}`,`**ICE Score:** ${h.ice_score}/10`,``,
+    `**Observed Issue:** ${h.observed_issue}`,``,`**Hypothesis:** ${h.hypothesis}`,``,
+    `**Why It Matters:** ${h.why_it_matters}`,``,`**Recommended Test:** ${h.recommended_test}`,
+    h.example_variant_copy ? `\n**Example Copy:** ${h.example_variant_copy}` : '',``,
+    `**Evidence:** ${h.evidence_from_page}`,
+  ].filter(l=>l!==undefined).join('\n');
+
+  await navigator.clipboard.writeText(text);
+  const icon = document.getElementById('copy-icon-'+id);
+  if (icon) {
+    icon.outerHTML = `<svg id="copy-icon-${id}" class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
+    setTimeout(() => {
+      const el = document.getElementById('copy-icon-'+id);
+      if (el) el.outerHTML = `<svg id="copy-icon-${id}" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>`;
+    }, 2000);
+  }
+}
+
+// ── Export Markdown ──────────────────────────────────────────────────────────
+function exportMarkdown() {
+  const { url, ai_analysis: a, extracted_data: ex, created_at } = currentAnalysis;
+  const lines = [
+    `# CRO Hypothesis Backlog`,``,
+    `**URL:** ${url}`,
+    `**Analyzed:** ${new Date(created_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}`,
+    `**Overall CRO Score:** ${a.overall_score}/100`,``,
+    `## Summary`,``,a.summary,``,
+    `## Page Snapshot`,``,
+    `| Field | Value |`,`|-------|-------|`,
+    `| Title | ${ex.title||'—'} |`,`| H1 | ${ex.h1[0]||'—'} |`,
+    `| CTA Count | ${ex.cta_count} |`,`| Word Count | ${ex.word_count} |`,``,
+    `## Hypotheses (${a.hypotheses.length})`,``,
+  ];
+  a.hypotheses.forEach((h, i) => {
+    lines.push(
+      `### #${i+1} — ${h.title}`,``,
+      `| | |`,`|---|---|`,
+      `| **Area** | ${h.area} |`,`| **ICE Score** | ${h.ice_score}/10 |`,
+      `| **Impact** | ${h.expected_impact} |`,`| **Confidence** | ${h.confidence} |`,
+      `| **Effort** | ${h.effort} |`,``,
+      `**Observed Issue:** ${h.observed_issue}`,``,
+      `**Hypothesis:** ${h.hypothesis}`,``,
+      `**Why It Matters:** ${h.why_it_matters}`,``,
+      `**Recommended Test:** ${h.recommended_test}`,``
+    );
+    if (h.example_variant_copy) lines.push(`**Example Copy:** > ${h.example_variant_copy}`,``);
+    lines.push(`**Evidence:** ${h.evidence_from_page}`,``,`---`,``);
+  });
+  const md = lines.join('\n');
+  const blob = new Blob([md], {type:'text/markdown'});
+  const a2 = document.createElement('a');
+  a2.href = URL.createObjectURL(blob);
+  try { a2.download = `cro-${new URL(url).hostname}.md`; } catch { a2.download = 'cro-hypotheses.md'; }
+  a2.click();
+  URL.revokeObjectURL(a2.href);
+}
+
+// ── Utility ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
