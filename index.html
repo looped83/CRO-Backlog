@@ -58,11 +58,11 @@
         <input id="url-input" type="text" placeholder="https://yoursite.com/landing-page"
           class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           onkeydown="if(event.key==='Enter')startAnalysis()" />
-        <p class="text-xs text-gray-400">Fetched via corsproxy.io — only the URL fetch needs internet. If blocked, use "Paste HTML".</p>
+        <p class="text-xs text-gray-400">Fetched via corsproxy.io — only the URL fetch needs internet. If blocked, use “Paste HTML”.</p>
       </div>
 
       <!-- HTML paste mode -->
-      <div id="mode-html" class="hidden space-y-2">
+      <div id="mode-html" style="display:none" class="space-y-2">
         <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Page HTML</label>
         <textarea id="html-input" rows="6" placeholder="Paste the full HTML source of the page here…"
           class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"></textarea>
@@ -73,7 +73,7 @@
         </div>
       </div>
 
-      <p id="input-error" class="text-xs text-red-500 hidden"></p>
+      <p id="input-error" class="text-xs text-red-500" style="display:none"></p>
 
       <!-- Optional context -->
       <details class="group">
@@ -193,7 +193,7 @@
         <span id="filter-count" class="text-xs text-gray-400"></span>
       </div>
       <div id="filter-rows" class="space-y-2"></div>
-      <button id="clear-filters-btn" onclick="clearFilters()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hidden">Clear all filters</button>
+      <button id="clear-filters-btn" onclick="clearFilters()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium" style="display:none">Clear all filters</button>
     </div>
 
     <!-- Hypotheses -->
@@ -226,7 +226,7 @@
 <!-- ═══════════════ JAVASCRIPT ═══════════════ -->
 <script>
 // ─── Global error handler ─────────────────────────────────────────────────────
-window.onerror = function(msg, src, line, col, err) {
+window.onerror = function(msg, src, line) {
   const el = document.getElementById('error-msg');
   const se = document.getElementById('screen-error');
   if (el && se) {
@@ -239,13 +239,13 @@ window.onerror = function(msg, src, line, col, err) {
   }
 };
 
-// ─── State ───────────────────────────────────────────────────────────────────
+// ─── State ──────────────────────────────────────────────────────────────────────────────
 let currentAnalysis = null;
 let currentView = 'cards';
 let inputMode = 'url';
 let filters = { area:'All', impact:'All', effort:'All', confidence:'All' };
 
-// ─── UUID fallback (crypto.randomUUID not available in file:// context) ───────
+// ─── UUID (crypto.randomUUID not available in non-secure contexts) ──────────────────
 function uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     try { return crypto.randomUUID(); } catch(_) {}
@@ -256,7 +256,7 @@ function uuid() {
   });
 }
 
-// ─── Screen & tabs ────────────────────────────────────────────────────────────
+// ─── Screen & tabs ────────────────────────────────────────────────────────────────
 function showScreen(name) {
   ['input','loading','error','results'].forEach(s => {
     document.getElementById('screen-'+s).style.display = (s === name) ? '' : 'none';
@@ -265,13 +265,13 @@ function showScreen(name) {
 
 function setInputMode(mode) {
   inputMode = mode;
-  document.getElementById('mode-url').classList.toggle('hidden', mode !== 'url');
-  document.getElementById('mode-html').classList.toggle('hidden', mode !== 'html');
+  document.getElementById('mode-url').style.display  = mode === 'url'  ? '' : 'none';
+  document.getElementById('mode-html').style.display = mode === 'html' ? '' : 'none';
   document.getElementById('tab-url').className  = 'pb-2 text-sm ' + (mode==='url'  ? 'tab-active' : 'text-gray-500 hover:text-gray-700');
   document.getElementById('tab-html').className = 'pb-2 text-sm ' + (mode==='html' ? 'tab-active' : 'text-gray-500 hover:text-gray-700');
 }
 
-// ─── Loading steps ────────────────────────────────────────────────────────────
+// ─── Loading steps ────────────────────────────────────────────────────────────────
 const STEPS = [
   { label:'Fetching page' },
   { label:'Extracting content' },
@@ -292,7 +292,7 @@ function renderSteps(activeIdx, doneSet) {
   }).join('');
 }
 
-// ─── Fetch via proxy ──────────────────────────────────────────────────────────
+// ─── Fetch via proxy ────────────────────────────────────────────────────────────────
 async function fetchWithTimeout(url, ms) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
@@ -307,7 +307,7 @@ async function fetchWithTimeout(url, ms) {
 }
 
 async function fetchPage(targetUrl) {
-  // Try corsproxy.io first (returns raw HTML, no JSON wrapper)
+  // Try corsproxy.io first (returns raw HTML)
   try {
     const res = await fetchWithTimeout(
       'https://corsproxy.io/?' + encodeURIComponent(targetUrl), 12000
@@ -318,7 +318,7 @@ async function fetchPage(targetUrl) {
     }
   } catch(_) {}
 
-  // Fallback: allorigins.win (returns JSON with .contents)
+  // Fallback: allorigins.win
   try {
     const res = await fetchWithTimeout(
       'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl), 15000
@@ -331,11 +331,11 @@ async function fetchPage(targetUrl) {
 
   throw new Error(
     'Could not fetch the page. The site may block crawlers, or both proxies are unavailable. ' +
-    'Try the "Paste HTML" tab instead: open the page in your browser, right-click → View Page Source, and paste it here.'
+    'Try the "Paste HTML" tab: open the page in your browser, right-click → View Page Source, and paste it here.'
   );
 }
 
-// ─── HTML Extraction ─────────────────────────────────────────────────────────
+// ─── HTML Extraction ────────────────────────────────────────────────────────────────
 function extractPageData(html, url) {
   const doc  = new DOMParser().parseFromString(html, 'text/html');
   doc.querySelectorAll('script,style,noscript').forEach(el => el.remove());
@@ -424,402 +424,78 @@ function extractPageData(html, url) {
   };
 }
 
-// ─── CRO Rule Engine ──────────────────────────────────────────────────────────
-// Each rule: { check(data, ctx) → bool, hyp(data, ctx) → hypothesis object }
+// ─── CRO Rule Engine ────────────────────────────────────────────────────────────────
 const RULES = [
-
-  // ── MESSAGING ──
-  {
-    check: d => d.h1.length === 0,
-    hyp: (d) => ({
-      area:'Messaging', title:'Missing H1 headline',
-      observed_issue:'The page has no H1 heading. Visitors cannot immediately grasp the core value proposition.',
-      hypothesis:'If we add a clear, benefit-driven H1 headline above the fold, then bounce rate will decrease because visitors instantly understand what the page offers.',
-      why_it_matters:'The H1 is the highest-priority on-page signal for both visitors and search engines. Its absence creates ambiguity at the most critical moment.',
-      recommended_test:'A/B test: control (no H1) vs. variant with a single, specific benefit headline.',
-      example_variant_copy:'Stop Losing Leads — Turn More Visitors Into Customers, Automatically.',
-      expected_impact:'high', confidence:'high', effort:'low', ice_score:9,
-      affected_page_element:'Hero section / H1',
-      evidence_from_page:`No H1 tags found on page. Title: "${d.title||'none'}".`,
-    }),
-  },
-  {
-    check: d => d.h1.length > 1,
-    hyp: (d) => ({
-      area:'Messaging', title:'Multiple H1 headings dilute focus',
-      observed_issue:`The page has ${d.h1.length} H1 headings (${d.h1.slice(0,2).join(' / ')}), creating confusion about the primary message.`,
-      hypothesis:'If we consolidate to a single strong H1, then message clarity will improve and the page hierarchy will be cleaner for both users and search engines.',
-      why_it_matters:'Multiple H1s split attention and weaken the value proposition signal. Users scan, they need one clear anchor.',
-      recommended_test:'Reduce to one H1 that captures the core value proposition. Demote others to H2.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'high', effort:'low', ice_score:7,
-      affected_page_element:'Page headings',
-      evidence_from_page:`Found ${d.h1.length} H1 tags: "${d.h1.join('" / "')}".`,
-    }),
-  },
-  {
-    check: d => !d.meta_description,
-    hyp: (d) => ({
-      area:'Messaging', title:'Missing meta description',
-      observed_issue:'No meta description found. Users coming from search see an auto-generated snippet instead of a controlled value message.',
-      hypothesis:'If we add a compelling meta description, then click-through rate from search will improve because users get a clear preview of the page's value.',
-      why_it_matters:'Meta descriptions are your first conversion touchpoint for organic traffic. Missing one means missed messaging control.',
-      recommended_test:'Add a 150-char meta description focused on the primary benefit and a CTA verb.',
-      example_variant_copy:'Try [Product] free for 14 days — [Key Benefit]. No credit card required.',
-      expected_impact:'medium', confidence:'high', effort:'low', ice_score:7,
-      affected_page_element:'<meta name="description">',
-      evidence_from_page:'No meta description tag found on the page.',
-    }),
-  },
-  {
-    check: d => d.word_count > 2500,
-    hyp: (d) => ({
-      area:'Information Architecture', title:'High cognitive load — excessive word count',
-      observed_issue:`The page contains ${d.word_count.toLocaleString()} words, creating cognitive overload that delays or prevents conversion decisions.`,
-      hypothesis:'If we reduce copy length and improve scannability (headers, bullets, whitespace), then time-to-decision will shorten and conversion rate will improve.',
-      why_it_matters:'Visitors scan, not read. Walls of text increase cognitive load and make key selling points easy to miss.',
-      recommended_test:'Create a shorter variant focused on the top 3 benefits with cleaner visual hierarchy.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'medium', effort:'medium', ice_score:5,
-      affected_page_element:'Main body copy',
-      evidence_from_page:`Page word count: ${d.word_count.toLocaleString()} words.`,
-    }),
-  },
-  {
-    check: d => d.word_count < 200,
-    hyp: (d) => ({
-      area:'Messaging', title:'Insufficient copy — value proposition underdeveloped',
-      observed_issue:`Only ${d.word_count} words detected. The page likely does not adequately address visitor objections or explain the offer.`,
-      hypothesis:'If we expand the copy to address key objections and elaborate on benefits, then conversion rate will improve because prospects have enough context to decide.',
-      why_it_matters:'Thin content signals lack of substance and fails to build the trust needed for conversion.',
-      recommended_test:'Add a benefits section, objection-handling copy, and a short "how it works" explanation.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'medium', effort:'medium', ice_score:5,
-      affected_page_element:'Main body copy',
-      evidence_from_page:`Page word count: ${d.word_count} words — very thin.`,
-    }),
-  },
-
-  // ── CTA ──
-  {
-    check: d => d.cta_count === 0,
-    hyp: (d) => ({
-      area:'CTA', title:'No clear call-to-action detected',
-      observed_issue:'No CTA buttons or links were detected. Visitors have no obvious next step, leading to high exit rates.',
-      hypothesis:'If we add a prominent, benefit-focused CTA above the fold, then conversions will increase because visitors have a clear action to take.',
-      why_it_matters:'Without a CTA, even interested visitors leave. The CTA is the single most important conversion element.',
-      recommended_test:'Add one primary CTA button above the fold with specific action text (not "Submit").',
-      example_variant_copy:'Start Your Free 14-Day Trial — No Credit Card Required',
-      expected_impact:'high', confidence:'high', effort:'low', ice_score:10,
-      affected_page_element:'Hero section / primary CTA',
-      evidence_from_page:'Zero CTA-type buttons or links detected during extraction.',
-    }),
-  },
-  {
-    check: d => d.cta_count >= 1 && d.cta_texts.some(t => /^(submit|click here|learn more|read more|more info|go|ok|yes|no)$/i.test(t.trim())),
-    hyp: (d) => {
-      const weak = d.cta_texts.filter(t => /^(submit|click here|learn more|read more|more info|go|ok|yes|no)$/i.test(t.trim()));
-      return {
-        area:'CTA', title:'Weak generic CTA copy',
-        observed_issue:`CTA button(s) use generic text: "${weak.join('", "')}" — providing no motivation or benefit to click.`,
-        hypothesis:'If we replace generic CTA labels with specific, benefit-driven action text, then click-through rate will improve because users understand exactly what they get.',
-        why_it_matters:'CTA copy is a micro-commitment. Vague text creates uncertainty; specific text builds confidence.',
-        recommended_test:'Replace weak CTA text with action + benefit format. Measure click rate.',
-        example_variant_copy:'Get My Free Trial — No Card Needed',
-        expected_impact:'high', confidence:'high', effort:'low', ice_score:9,
-        affected_page_element:'CTA button(s)',
-        evidence_from_page:`Detected weak CTA text: "${weak.join('", "')}".`,
-      };
-    },
-  },
-  {
-    check: d => d.cta_count > 6,
-    hyp: (d) => ({
-      area:'CTA', title:'Too many competing CTAs — choice paralysis',
-      observed_issue:`${d.cta_count} CTA-style elements detected. Too many options create decision fatigue and reduce the likelihood of any action.`,
-      hypothesis:'If we reduce to one primary CTA and de-emphasize secondary actions, then the primary conversion goal will receive more clicks.',
-      why_it_matters:'Hick\'s Law: more choices → longer decision time → higher abandonment. Every page needs one hero CTA.',
-      recommended_test:'Hierarchy test: one primary button, secondary links de-styled as text links. Measure primary CTA clicks.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6,
-      affected_page_element:'Multiple CTA elements',
-      evidence_from_page:`${d.cta_count} CTA elements detected: "${d.cta_texts.slice(0,5).join('", "')}"…`,
-    }),
-  },
-
-  // ── TRUST ──
-  {
-    check: d => d.trust_indicators.length === 0,
-    hyp: (d) => ({
-      area:'Trust', title:'No trust indicators found',
-      observed_issue:'No trust signals detected (customer counts, security badges, certifications, featured-in logos, guarantees).',
-      hypothesis:'If we add trust indicators near the CTA, then conversion rate will increase because visitors feel safer making a commitment.',
-      why_it_matters:'Trust is a prerequisite to conversion, especially for B2B SaaS. Visitors need to believe you\'re credible before they share their info or money.',
-      recommended_test:'Add customer logo bar + "X customers trust us" stat above the fold. Measure conversion uplift.',
-      example_variant_copy:'Trusted by 3,000+ marketing teams at companies like Acme, Globex & Initech.',
-      expected_impact:'high', confidence:'high', effort:'medium', ice_score:8,
-      affected_page_element:'Trust section / hero',
-      evidence_from_page:'No trust indicators detected during extraction.',
-    }),
-  },
-  {
-    check: d => d.trust_indicators.length > 0 && d.trust_indicators.length < 3,
-    hyp: (d) => ({
-      area:'Trust', title:'Thin trust signal coverage',
-      observed_issue:`Only ${d.trust_indicators.length} trust signal(s) detected: ${d.trust_indicators.join(', ')}. More variety builds stronger credibility.`,
-      hypothesis:'If we add at least 2–3 distinct trust signal types (logo bar, customer count, security badge), then perceived credibility will increase and conversion rate will improve.',
-      why_it_matters:'Trust signals work cumulatively. A single badge is easily dismissed; multiple signals from different sources create robust credibility.',
-      recommended_test:'Add customer logo bar + numbered social proof stat. Measure conversion rate.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'medium', effort:'medium', ice_score:6,
-      affected_page_element:'Trust section',
-      evidence_from_page:`Detected: ${d.trust_indicators.join(', ')}.`,
-    }),
-  },
-
-  // ── SOCIAL PROOF ──
-  {
-    check: d => d.social_proof.length === 0,
-    hyp: (d) => ({
-      area:'Social Proof', title:'No testimonials or reviews found',
-      observed_issue:'No testimonials, reviews, or case study snippets detected on the page.',
-      hypothesis:'If we add 2–3 specific customer testimonials with names and company roles, then trust and conversion rate will increase because prospects see real-world validation.',
-      why_it_matters:'92% of B2B buyers trust peer reviews more than vendor claims. Testimonials are the most persuasive trust element for SaaS.',
-      recommended_test:'Add a testimonials section with 3 specific, outcome-focused quotes. Measure conversion rate vs. control.',
-      example_variant_copy:'"We increased our demo request rate by 34% in the first month." — Sarah K., Head of Marketing at Acme',
-      expected_impact:'high', confidence:'high', effort:'medium', ice_score:8,
-      affected_page_element:'Social proof / testimonials section',
-      evidence_from_page:'No testimonial or review elements detected.',
-    }),
-  },
-  {
-    check: d => d.social_proof.length > 0 && d.social_proof.every(s => s.length < 50),
-    hyp: (d) => ({
-      area:'Social Proof', title:'Testimonials too brief — lack specificity',
-      observed_issue:'Testimonials detected but are very short and likely lack outcome data or attribution.',
-      hypothesis:'If we replace vague testimonials with specific, outcome-focused quotes with full attribution, then conversion rate will increase because prospects get credible, relevant social proof.',
-      why_it_matters:'Generic praise ("Great product!") is dismissed by skeptical buyers. Specific results ("Saved us 5 hrs/week") convert.',
-      recommended_test:'Replace short quotes with 2–3 testimonials that include: specific outcome, person\'s name, company, role.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6,
-      affected_page_element:'Testimonial section',
-      evidence_from_page:`Testimonials found but brief: "${d.social_proof[0]?.slice(0,80)}…"`,
-    }),
-  },
-
-  // ── RISK REDUCTION ──
-  {
-    check: d => d.risk_reducers.length === 0,
-    hyp: (d) => ({
-      area:'Risk Reduction', title:'No risk-reduction messaging found',
-      observed_issue:'No risk-reducing language detected (free trial, money-back guarantee, no credit card, cancel anytime).',
-      hypothesis:'If we add risk-reduction copy near the primary CTA, then conversion rate will increase because prospects feel safer making a low-stakes commitment.',
-      why_it_matters:'Purchase anxiety is the #1 reason interested visitors don\'t convert. Risk reducers directly address this objection.',
-      recommended_test:'Add "No credit card required" + "Cancel anytime" below the CTA. Measure click-through rate.',
-      example_variant_copy:'Start free — no credit card required. Cancel anytime.',
-      expected_impact:'high', confidence:'high', effort:'low', ice_score:9,
-      affected_page_element:'CTA area',
-      evidence_from_page:'No risk-reduction language found in page copy.',
-    }),
-  },
-  {
-    check: d => d.risk_reducers.length === 1,
-    hyp: (d) => ({
-      area:'Risk Reduction', title:'Only one risk reducer — room to reduce friction further',
-      observed_issue:`Only one risk signal detected: "${d.risk_reducers[0]}". Adding a second reinforces the low-risk message.`,
-      hypothesis:'If we add a complementary risk reducer (e.g. money-back guarantee alongside free trial), then hesitant visitors will be more likely to convert.',
-      why_it_matters:'Stacking risk reducers compounds the effect. "Free trial" + "No card" + "Cancel anytime" together are far more persuasive than any one alone.',
-      recommended_test:'Add a second risk reducer near the CTA and measure conversion rate change.',
-      example_variant_copy:'Free 14-day trial · No credit card · Cancel anytime',
-      expected_impact:'medium', confidence:'medium', effort:'low', ice_score:7,
-      affected_page_element:'CTA area',
-      evidence_from_page:`Found: "${d.risk_reducers.join(', ')}".`,
-    }),
-  },
-
-  // ── FORM ──
-  {
-    check: d => d.form_fields.length > 5,
-    hyp: (d) => ({
-      area:'Form', title:'Form has too many fields — high friction',
-      observed_issue:`${d.form_fields.length} form fields detected: ${d.form_fields.slice(0,6).join(', ')}${d.form_fields.length>6?'…':''}. Each extra field reduces completion rates by ~10%.`,
-      hypothesis:'If we reduce the form to only essential fields (email + maybe name), then form completion rate will increase significantly.',
-      why_it_matters:'Every additional field is a micro-obstacle. Conversion rate typically drops 10–20% per unnecessary field.',
-      recommended_test:'Progressive disclosure: ask only email first, collect additional info post-conversion.',
-      example_variant_copy:null,
-      expected_impact:'high', confidence:'high', effort:'medium', ice_score:8,
-      affected_page_element:'Lead capture / signup form',
-      evidence_from_page:`Form fields detected: ${d.form_fields.join(', ')}.`,
-    }),
-  },
-  {
-    check: d => d.form_fields.length >= 3 && d.form_fields.length <= 5,
-    hyp: (d) => ({
-      area:'Form', title:'Form field count worth optimising',
-      observed_issue:`${d.form_fields.length} fields (${d.form_fields.join(', ')}). Could at least one field be collected post-signup?`,
-      hypothesis:'If we move one or two non-essential fields to a post-signup step, then top-of-funnel conversion will improve.',
-      why_it_matters:'Reducing form length is one of the highest-ROI CRO tactics with consistent evidence across industries.',
-      recommended_test:'Remove phone/company field from the form. Measure completion rate.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6,
-      affected_page_element:'Lead capture form',
-      evidence_from_page:`Detected fields: ${d.form_fields.join(', ')}.`,
-    }),
-  },
-
-  // ── OBJECTION HANDLING ──
-  {
-    check: d => !d.has_faq,
-    hyp: (d) => ({
-      area:'Objection Handling', title:'No FAQ section — objections go unanswered',
-      observed_issue:'No FAQ section detected. Common objections (pricing, security, integrations, cancellation) likely go unanswered, causing drop-off.',
-      hypothesis:'If we add a targeted FAQ section addressing the top 5 objections, then conversion rate will improve because on-the-fence prospects get the information they need to decide.',
-      why_it_matters:'Visitors who don\'t convert often have unanswered questions. A well-placed FAQ can replace a sales call for bottom-of-funnel prospects.',
-      recommended_test:'Add 5 FAQ items covering: pricing, security, integrations, setup time, and cancellation. Measure conversion uplift.',
-      example_variant_copy:'Q: How long does setup take?\nA: Most teams are live within 10 minutes — no engineering required.',
-      expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6,
-      affected_page_element:'FAQ section',
-      evidence_from_page:'No FAQ section or frequently-asked-questions content detected.',
-    }),
-  },
-
-  // ── INFORMATION ARCHITECTURE ──
-  {
-    check: d => d.h2_h3.length < 2,
-    hyp: (d) => ({
-      area:'Information Architecture', title:'Poor heading hierarchy — hard to scan',
-      observed_issue:`Only ${d.h2_h3.length} H2/H3 heading(s) found. Visitors cannot scan the page structure or find information quickly.`,
-      hypothesis:'If we add clear H2 section headings for each page segment, then visitors will be able to scan to their specific concern and conversion rate will improve.',
-      why_it_matters:'Most visitors scan before they read. Headings are navigation — without them, copy is a wall of text that drives abandonment.',
-      recommended_test:'Add H2 headings for: Value Prop, How It Works, Social Proof, Pricing, FAQ. Measure scroll depth and conversion.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6,
-      affected_page_element:'Page structure / headings',
-      evidence_from_page:`Only ${d.h2_h3.length} H2/H3 headings found: "${d.h2_h3.join('" / "')}"`,
-    }),
-  },
-  {
-    check: d => d.nav_links.length > 8,
-    hyp: (d) => ({
-      area:'UX Friction', title:'Cluttered navigation distracts from conversion',
-      observed_issue:`${d.nav_links.length} navigation links detected. Heavy navigation pulls visitors away from the conversion path.`,
-      hypothesis:'If we simplify navigation on the landing page (or remove it entirely), then visitors will stay focused on the primary CTA and conversion rate will improve.',
-      why_it_matters:'Every navigation link is an escape route. Landing pages with minimal nav consistently outperform full-nav versions.',
-      recommended_test:'Create a navigation-free or minimal-nav variant. Measure conversion rate.',
-      example_variant_copy:null,
-      expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6,
-      affected_page_element:'Navigation / header',
-      evidence_from_page:`${d.nav_links.length} nav links: "${d.nav_links.slice(0,5).join('", "')}…"`,
-    }),
-  },
-
-  // ── PRICING ──
-  {
-    check: (d, ctx) => d.pricing_mentions.length === 0 && ctx.convGoal && ctx.convGoal.toLowerCase().includes('subscri'),
-    hyp: (d) => ({
-      area:'Pricing', title:'No pricing information — creates uncertainty',
-      observed_issue:'No pricing mentions detected despite a subscription conversion goal. Visitors may not commit without knowing cost.',
-      hypothesis:'If we add transparent pricing or at least a "starting from" anchor, then qualified visitors will convert at higher rates because they can pre-qualify themselves.',
-      why_it_matters:'Hiding pricing is a top objection-creation mistake for SaaS. It delays decisions and attracts poorly-qualified leads.',
-      recommended_test:'Add a simple 3-tier pricing section or a "Starts at $X/mo" anchor in the hero.',
-      example_variant_copy:'Plans start at $49/mo — scale as you grow.',
-      expected_impact:'high', confidence:'medium', effort:'medium', ice_score:7,
-      affected_page_element:'Pricing section',
-      evidence_from_page:'No price mentions found in page copy.',
-    }),
-  },
-
-  // ── UX FRICTION ──
-  {
-    check: d => d.has_noindex,
-    hyp: (d) => ({
-      area:'UX Friction', title:'Page has noindex — invisible to search engines',
-      observed_issue:'The page has a robots noindex directive, making it invisible to organic search traffic.',
-      hypothesis:'If this page is intended to receive organic traffic and the noindex is unintentional, removing it will restore search visibility and increase traffic to this conversion page.',
-      why_it_matters:'A noindexed landing page with strong CRO potential misses all organic traffic. High priority to verify intentionality.',
-      recommended_test:'Verify whether noindex is intentional. If not, remove the directive and submit for indexing.',
-      example_variant_copy:null,
-      expected_impact:'high', confidence:'high', effort:'low', ice_score:8,
-      affected_page_element:'<meta name="robots" content="noindex">',
-      evidence_from_page:'noindex directive found in meta robots tag.',
-    }),
-  },
+  { check: d => d.h1.length === 0, hyp: (d) => ({ area:'Messaging', title:'Missing H1 headline', observed_issue:'The page has no H1 heading. Visitors cannot immediately grasp the core value proposition.', hypothesis:'If we add a clear, benefit-driven H1 headline above the fold, then bounce rate will decrease because visitors instantly understand what the page offers.', why_it_matters:'The H1 is the highest-priority on-page signal for both visitors and search engines. Its absence creates ambiguity at the most critical moment.', recommended_test:'A/B test: control (no H1) vs. variant with a single, specific benefit headline.', example_variant_copy:'Stop Losing Leads — Turn More Visitors Into Customers, Automatically.', expected_impact:'high', confidence:'high', effort:'low', ice_score:9, affected_page_element:'Hero section / H1', evidence_from_page:`No H1 tags found on page. Title: "${d.title||'none'}".` }) },
+  { check: d => d.h1.length > 1, hyp: (d) => ({ area:'Messaging', title:'Multiple H1 headings dilute focus', observed_issue:`The page has ${d.h1.length} H1 headings (${d.h1.slice(0,2).join(' / ')}), creating confusion about the primary message.`, hypothesis:'If we consolidate to a single strong H1, then message clarity will improve and the page hierarchy will be cleaner for both users and search engines.', why_it_matters:'Multiple H1s split attention and weaken the value proposition signal. Users scan, they need one clear anchor.', recommended_test:'Reduce to one H1 that captures the core value proposition. Demote others to H2.', example_variant_copy:null, expected_impact:'medium', confidence:'high', effort:'low', ice_score:7, affected_page_element:'Page headings', evidence_from_page:`Found ${d.h1.length} H1 tags: "${d.h1.join('" / '")}".` }) },
+  { check: d => !d.meta_description, hyp: () => ({ area:'Messaging', title:'Missing meta description', observed_issue:'No meta description found. Users coming from search see an auto-generated snippet instead of a controlled value message.', hypothesis:'If we add a compelling meta description, then click-through rate from search will improve because users get a clear preview of the page value.', why_it_matters:'Meta descriptions are your first conversion touchpoint for organic traffic. Missing one means missed messaging control.', recommended_test:'Add a 150-char meta description focused on the primary benefit and a CTA verb.', example_variant_copy:'Try [Product] free for 14 days — [Key Benefit]. No credit card required.', expected_impact:'medium', confidence:'high', effort:'low', ice_score:7, affected_page_element:'<meta name="description">', evidence_from_page:'No meta description tag found on the page.' }) },
+  { check: d => d.word_count > 2500, hyp: (d) => ({ area:'Information Architecture', title:'High cognitive load — excessive word count', observed_issue:`The page contains ${d.word_count.toLocaleString()} words, creating cognitive overload that delays conversion decisions.`, hypothesis:'If we reduce copy length and improve scannability (headers, bullets, whitespace), then time-to-decision will shorten and conversion rate will improve.', why_it_matters:'Visitors scan, not read. Walls of text increase cognitive load and make key selling points easy to miss.', recommended_test:'Create a shorter variant focused on the top 3 benefits with cleaner visual hierarchy.', example_variant_copy:null, expected_impact:'medium', confidence:'medium', effort:'medium', ice_score:5, affected_page_element:'Main body copy', evidence_from_page:`Page word count: ${d.word_count.toLocaleString()} words.` }) },
+  { check: d => d.word_count < 200, hyp: (d) => ({ area:'Messaging', title:'Insufficient copy — value proposition underdeveloped', observed_issue:`Only ${d.word_count} words detected. The page likely does not adequately address visitor objections or explain the offer.`, hypothesis:'If we expand the copy to address key objections and elaborate on benefits, then conversion rate will improve because prospects have enough context to decide.', why_it_matters:'Thin content signals lack of substance and fails to build the trust needed for conversion.', recommended_test:'Add a benefits section, objection-handling copy, and a short "how it works" explanation.', example_variant_copy:null, expected_impact:'medium', confidence:'medium', effort:'medium', ice_score:5, affected_page_element:'Main body copy', evidence_from_page:`Page word count: ${d.word_count} words — very thin.` }) },
+  { check: d => d.cta_count === 0, hyp: () => ({ area:'CTA', title:'No clear call-to-action detected', observed_issue:'No CTA buttons or links were detected. Visitors have no obvious next step, leading to high exit rates.', hypothesis:'If we add a prominent, benefit-focused CTA above the fold, then conversions will increase because visitors have a clear action to take.', why_it_matters:'Without a CTA, even interested visitors leave. The CTA is the single most important conversion element.', recommended_test:'Add one primary CTA button above the fold with specific action text (not "Submit").', example_variant_copy:'Start Your Free 14-Day Trial — No Credit Card Required', expected_impact:'high', confidence:'high', effort:'low', ice_score:10, affected_page_element:'Hero section / primary CTA', evidence_from_page:'Zero CTA-type buttons or links detected during extraction.' }) },
+  { check: d => d.cta_count >= 1 && d.cta_texts.some(t => /^(submit|click here|learn more|read more|more info|go|ok|yes|no)$/i.test(t.trim())), hyp: (d) => { const weak = d.cta_texts.filter(t => /^(submit|click here|learn more|read more|more info|go|ok|yes|no)$/i.test(t.trim())); return { area:'CTA', title:'Weak generic CTA copy', observed_issue:`CTA button(s) use generic text: "${weak.join('\', \'')}".`, hypothesis:'If we replace generic CTA labels with specific, benefit-driven action text, then click-through rate will improve.', why_it_matters:'CTA copy is a micro-commitment. Vague text creates uncertainty; specific text builds confidence.', recommended_test:'Replace weak CTA text with action + benefit format. Measure click rate.', example_variant_copy:'Get My Free Trial — No Card Needed', expected_impact:'high', confidence:'high', effort:'low', ice_score:9, affected_page_element:'CTA button(s)', evidence_from_page:`Detected weak CTA text: "${weak.join('\', \'')}".` }; } },
+  { check: d => d.cta_count > 6, hyp: (d) => ({ area:'CTA', title:'Too many competing CTAs — choice paralysis', observed_issue:`${d.cta_count} CTA-style elements detected. Too many options create decision fatigue.`, hypothesis:'If we reduce to one primary CTA and de-emphasize secondary actions, then the primary conversion goal will receive more clicks.', why_it_matters:"Hick's Law: more choices → longer decision time → higher abandonment.", recommended_test:'Hierarchy test: one primary button, secondary links de-styled as text links.', example_variant_copy:null, expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6, affected_page_element:'Multiple CTA elements', evidence_from_page:`${d.cta_count} CTA elements detected: "${d.cta_texts.slice(0,5).join('\', \'')}"…` }) },
+  { check: d => d.trust_indicators.length === 0, hyp: () => ({ area:'Trust', title:'No trust indicators found', observed_issue:'No trust signals detected (customer counts, security badges, certifications, featured-in logos, guarantees).', hypothesis:'If we add trust indicators near the CTA, then conversion rate will increase because visitors feel safer making a commitment.', why_it_matters:"Trust is a prerequisite to conversion, especially for B2B SaaS. Visitors need to believe you're credible before they share their info or money.", recommended_test:'Add customer logo bar + "X customers trust us" stat above the fold. Measure conversion uplift.', example_variant_copy:'Trusted by 3,000+ marketing teams at companies like Acme, Globex & Initech.', expected_impact:'high', confidence:'high', effort:'medium', ice_score:8, affected_page_element:'Trust section / hero', evidence_from_page:'No trust indicators detected during extraction.' }) },
+  { check: d => d.trust_indicators.length > 0 && d.trust_indicators.length < 3, hyp: (d) => ({ area:'Trust', title:'Thin trust signal coverage', observed_issue:`Only ${d.trust_indicators.length} trust signal(s) detected: ${d.trust_indicators.join(', ')}. More variety builds stronger credibility.`, hypothesis:'If we add at least 2–3 distinct trust signal types (logo bar, customer count, security badge), then perceived credibility will increase.', why_it_matters:'Trust signals work cumulatively. A single badge is easily dismissed; multiple signals from different sources create robust credibility.', recommended_test:'Add customer logo bar + numbered social proof stat. Measure conversion rate.', example_variant_copy:null, expected_impact:'medium', confidence:'medium', effort:'medium', ice_score:6, affected_page_element:'Trust section', evidence_from_page:`Detected: ${d.trust_indicators.join(', ')}.` }) },
+  { check: d => d.social_proof.length === 0, hyp: () => ({ area:'Social Proof', title:'No testimonials or reviews found', observed_issue:'No testimonials, reviews, or case study snippets detected on the page.', hypothesis:'If we add 2–3 specific customer testimonials with names and company roles, then trust and conversion rate will increase.', why_it_matters:'92% of B2B buyers trust peer reviews more than vendor claims. Testimonials are the most persuasive trust element for SaaS.', recommended_test:'Add a testimonials section with 3 specific, outcome-focused quotes. Measure conversion rate vs. control.', example_variant_copy:'"We increased our demo request rate by 34% in the first month." — Sarah K., Head of Marketing at Acme', expected_impact:'high', confidence:'high', effort:'medium', ice_score:8, affected_page_element:'Social proof / testimonials section', evidence_from_page:'No testimonial or review elements detected.' }) },
+  { check: d => d.social_proof.length > 0 && d.social_proof.every(s => s.length < 50), hyp: (d) => ({ area:'Social Proof', title:'Testimonials too brief — lack specificity', observed_issue:'Testimonials detected but are very short and likely lack outcome data or attribution.', hypothesis:'If we replace vague testimonials with specific, outcome-focused quotes with full attribution, then conversion rate will increase.', why_it_matters:'Generic praise ("Great product!") is dismissed by skeptical buyers. Specific results ("Saved us 5 hrs/week") convert.', recommended_test:'Replace short quotes with 2–3 testimonials that include: specific outcome, name, company, role.', example_variant_copy:null, expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6, affected_page_element:'Testimonial section', evidence_from_page:`Testimonials found but brief: "${d.social_proof[0]?.slice(0,80)}…"` }) },
+  { check: d => d.risk_reducers.length === 0, hyp: () => ({ area:'Risk Reduction', title:'No risk-reduction messaging found', observed_issue:'No risk-reducing language detected (free trial, money-back guarantee, no credit card, cancel anytime).', hypothesis:'If we add risk-reduction copy near the primary CTA, then conversion rate will increase because prospects feel safer.', why_it_matters:'Purchase anxiety is the #1 reason interested visitors do not convert. Risk reducers directly address this objection.', recommended_test:'Add "No credit card required" + "Cancel anytime" below the CTA. Measure click-through rate.', example_variant_copy:'Start free — no credit card required. Cancel anytime.', expected_impact:'high', confidence:'high', effort:'low', ice_score:9, affected_page_element:'CTA area', evidence_from_page:'No risk-reduction language found in page copy.' }) },
+  { check: d => d.risk_reducers.length === 1, hyp: (d) => ({ area:'Risk Reduction', title:'Only one risk reducer — room to reduce friction further', observed_issue:`Only one risk signal detected: "${d.risk_reducers[0]}". Adding a second reinforces the low-risk message.`, hypothesis:'If we add a complementary risk reducer, then hesitant visitors will be more likely to convert.', why_it_matters:'Stacking risk reducers compounds the effect. "Free trial" + "No card" + "Cancel anytime" together are far more persuasive than any one alone.', recommended_test:'Add a second risk reducer near the CTA and measure conversion rate change.', example_variant_copy:'Free 14-day trial · No credit card · Cancel anytime', expected_impact:'medium', confidence:'medium', effort:'low', ice_score:7, affected_page_element:'CTA area', evidence_from_page:`Found: "${d.risk_reducers.join(', ')}".` }) },
+  { check: d => d.form_fields.length > 5, hyp: (d) => ({ area:'Form', title:'Form has too many fields — high friction', observed_issue:`${d.form_fields.length} form fields detected: ${d.form_fields.slice(0,6).join(', ')}${d.form_fields.length>6?'…':''}. Each extra field reduces completion rates by ~10%.`, hypothesis:'If we reduce the form to only essential fields (email + maybe name), then form completion rate will increase significantly.', why_it_matters:'Every additional field is a micro-obstacle. Conversion rate typically drops 10–20% per unnecessary field.', recommended_test:'Progressive disclosure: ask only email first, collect additional info post-conversion.', example_variant_copy:null, expected_impact:'high', confidence:'high', effort:'medium', ice_score:8, affected_page_element:'Lead capture / signup form', evidence_from_page:`Form fields detected: ${d.form_fields.join(', ')}.` }) },
+  { check: d => d.form_fields.length >= 3 && d.form_fields.length <= 5, hyp: (d) => ({ area:'Form', title:'Form field count worth optimising', observed_issue:`${d.form_fields.length} fields (${d.form_fields.join(', ')}). Could at least one field be collected post-signup?`, hypothesis:'If we move one or two non-essential fields to a post-signup step, then top-of-funnel conversion will improve.', why_it_matters:'Reducing form length is one of the highest-ROI CRO tactics with consistent evidence across industries.', recommended_test:'Remove phone/company field from the form. Measure completion rate.', example_variant_copy:null, expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6, affected_page_element:'Lead capture form', evidence_from_page:`Detected fields: ${d.form_fields.join(', ')}.` }) },
+  { check: d => !d.has_faq, hyp: () => ({ area:'Objection Handling', title:'No FAQ section — objections go unanswered', observed_issue:'No FAQ section detected. Common objections (pricing, security, integrations, cancellation) likely go unanswered, causing drop-off.', hypothesis:'If we add a targeted FAQ section addressing the top 5 objections, then conversion rate will improve because on-the-fence prospects get the information they need to decide.', why_it_matters:'Visitors who do not convert often have unanswered questions. A well-placed FAQ can replace a sales call for bottom-of-funnel prospects.', recommended_test:'Add 5 FAQ items covering: pricing, security, integrations, setup time, and cancellation. Measure conversion uplift.', example_variant_copy:'Q: How long does setup take?\nA: Most teams are live within 10 minutes — no engineering required.', expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6, affected_page_element:'FAQ section', evidence_from_page:'No FAQ section or frequently-asked-questions content detected.' }) },
+  { check: d => d.h2_h3.length < 2, hyp: (d) => ({ area:'Information Architecture', title:'Poor heading hierarchy — hard to scan', observed_issue:`Only ${d.h2_h3.length} H2/H3 heading(s) found. Visitors cannot scan the page structure or find information quickly.`, hypothesis:'If we add clear H2 section headings for each page segment, then visitors will be able to scan to their specific concern and conversion rate will improve.', why_it_matters:'Most visitors scan before they read. Headings are navigation — without them, copy is a wall of text that drives abandonment.', recommended_test:'Add H2 headings for: Value Prop, How It Works, Social Proof, Pricing, FAQ. Measure scroll depth and conversion.', example_variant_copy:null, expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6, affected_page_element:'Page structure / headings', evidence_from_page:`Only ${d.h2_h3.length} H2/H3 headings found: "${d.h2_h3.join('" / "')}"` }) },
+  { check: d => d.nav_links.length > 8, hyp: (d) => ({ area:'UX Friction', title:'Cluttered navigation distracts from conversion', observed_issue:`${d.nav_links.length} navigation links detected. Heavy navigation pulls visitors away from the conversion path.`, hypothesis:'If we simplify navigation on the landing page (or remove it entirely), then visitors will stay focused on the primary CTA and conversion rate will improve.', why_it_matters:'Every navigation link is an escape route. Landing pages with minimal nav consistently outperform full-nav versions.', recommended_test:'Create a navigation-free or minimal-nav variant. Measure conversion rate.', example_variant_copy:null, expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6, affected_page_element:'Navigation / header', evidence_from_page:`${d.nav_links.length} nav links: "${d.nav_links.slice(0,5).join('", "')}…"` }) },
+  { check: (d, ctx) => d.pricing_mentions.length === 0 && ctx.convGoal && ctx.convGoal.toLowerCase().includes('subscri'), hyp: () => ({ area:'Pricing', title:'No pricing information — creates uncertainty', observed_issue:'No pricing mentions detected despite a subscription conversion goal. Visitors may not commit without knowing cost.', hypothesis:'If we add transparent pricing or at least a "starting from" anchor, then qualified visitors will convert at higher rates.', why_it_matters:'Hiding pricing is a top objection-creation mistake for SaaS. It delays decisions and attracts poorly-qualified leads.', recommended_test:'Add a simple 3-tier pricing section or a "Starts at $X/mo" anchor in the hero.', example_variant_copy:'Plans start at $49/mo — scale as you grow.', expected_impact:'high', confidence:'medium', effort:'medium', ice_score:7, affected_page_element:'Pricing section', evidence_from_page:'No price mentions found in page copy.' }) },
+  { check: d => d.has_noindex, hyp: () => ({ area:'UX Friction', title:'Page has noindex — invisible to search engines', observed_issue:'The page has a robots noindex directive, making it invisible to organic search traffic.', hypothesis:'If this page is intended to receive organic traffic and the noindex is unintentional, removing it will restore search visibility.', why_it_matters:'A noindexed landing page with strong CRO potential misses all organic traffic. High priority to verify intentionality.', recommended_test:'Verify whether noindex is intentional. If not, remove the directive and submit for indexing.', example_variant_copy:null, expected_impact:'high', confidence:'high', effort:'low', ice_score:8, affected_page_element:'<meta name="robots" content="noindex">', evidence_from_page:'noindex directive found in meta robots tag.' }) },
 ];
 
-// ─── Run rules & build analysis ───────────────────────────────────────────────
 function runRuleEngine(data, ctx) {
   const triggered = RULES
     .filter(r => r.check(data, ctx))
-    .map((r, i) => {
-      const h = r.hyp(data, ctx);
-      return {
-        id: `H${String(i+1).padStart(3,'0')}`,
-        ...h,
-        priority_rank: i+1,   // will be re-sorted
-      };
-    });
+    .map((r, i) => ({ id:`H${String(i+1).padStart(3,'0')}`, ...r.hyp(data, ctx), priority_rank:i+1 }));
 
-  // Sort by ice_score desc, assign priority_rank
   triggered.sort((a,b) => b.ice_score - a.ice_score);
   triggered.forEach((h,i) => h.priority_rank = i+1);
 
-  // Ensure at least a few hypotheses even for high-scoring pages
   if (triggered.length < 3) {
-    triggered.push({
-      id:'H_GEN1',
-      area:'Messaging', title:'Strengthen value proposition specificity',
-      observed_issue:'The page passes most basic CRO checks, but value proposition specificity can almost always be improved.',
-      hypothesis:'If we make the headline more specific to the target audience\'s pain point, then visitor-to-lead conversion will improve.',
-      why_it_matters:'Even technically well-structured pages benefit from sharper messaging that speaks directly to the ideal customer profile.',
-      recommended_test:'Test a more specific headline variant that names the target audience or their key problem.',
-      example_variant_copy:'The Easiest Way for Marketing Teams to Generate 2× More Qualified Leads',
-      expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6,
-      priority_rank: triggered.length+1,
-      affected_page_element:'H1 / Hero headline',
-      evidence_from_page:`Current H1: "${data.h1[0]||'(none)'}"`,
-    });
+    triggered.push({ id:'H_GEN1', area:'Messaging', title:'Strengthen value proposition specificity', observed_issue:'The page passes most basic CRO checks, but value proposition specificity can almost always be improved.', hypothesis:"If we make the headline more specific to the target audience's pain point, then visitor-to-lead conversion will improve.", why_it_matters:'Even technically well-structured pages benefit from sharper messaging that speaks directly to the ideal customer profile.', recommended_test:'Test a more specific headline variant that names the target audience or their key problem.', example_variant_copy:'The Easiest Way for Marketing Teams to Generate 2× More Qualified Leads', expected_impact:'medium', confidence:'medium', effort:'low', ice_score:6, priority_rank:triggered.length+1, affected_page_element:'H1 / Hero headline', evidence_from_page:`Current H1: "${data.h1[0]||'(none)'}"` });
   }
 
-  // Overall score: 100 minus penalty per triggered rule, weighted by ice_score
   const maxPenalty = RULES.length * 5;
   const penalty = triggered.reduce((sum,h) => sum + Math.min(h.ice_score, 10), 0);
   const overall_score = Math.max(10, Math.round(100 - (penalty/maxPenalty)*90));
-
-  // Summary
   const highImpact = triggered.filter(h=>h.expected_impact==='high').length;
   const areas = [...new Set(triggered.map(h=>h.area))].slice(0,3);
   const summary = `Rule-based analysis found ${triggered.length} CRO improvement opportunities, including ${highImpact} high-impact issue${highImpact!==1?'s':''}. The most critical areas are ${areas.join(', ')}. Focus first on the top-ranked hypotheses (highest ICE score) for the fastest conversion wins.`;
-
   return { overall_score, summary, hypotheses: triggered };
 }
 
-// ─── Main flow ────────────────────────────────────────────────────────────────
 async function startAnalysis() {
   try { await _startAnalysis(); } catch(e) { showError(e.message||String(e)); }
 }
 async function _startAnalysis() {
   const errEl = document.getElementById('input-error');
-  errEl.classList.add('hidden');
+  errEl.style.display = 'none';
 
   let html='', url='';
 
   if (inputMode === 'url') {
     const raw = document.getElementById('url-input').value.trim();
-    if (!raw) { errEl.textContent='Please enter a URL.'; errEl.classList.remove('hidden'); return; }
+    if (!raw) { errEl.textContent='Please enter a URL.'; errEl.style.display=''; return; }
     url = raw.startsWith('http') ? raw : 'https://'+raw;
-    try { new URL(url); } catch { errEl.textContent='Invalid URL.'; errEl.classList.remove('hidden'); return; }
+    try { new URL(url); } catch { errEl.textContent='Invalid URL.'; errEl.style.display=''; return; }
   } else {
     html = document.getElementById('html-input').value.trim();
     url  = document.getElementById('html-url').value.trim() || 'https://example.com';
-    if (!html) { errEl.textContent='Please paste the page HTML.'; errEl.classList.remove('hidden'); return; }
+    if (!html) { errEl.textContent='Please paste the page HTML.'; errEl.style.display=''; return; }
     if (!url.startsWith('http')) url = 'https://'+url;
   }
 
   showScreen('loading');
   document.getElementById('loading-url').textContent = url.length>55 ? url.slice(0,52)+'...' : url;
 
-  const done=new Set(); let step=0;
-  renderSteps(step, done);
+  const done=new Set();
+  renderSteps(0, done);
 
   const ctx = {
     pageType:  document.getElementById('page-type').value,
@@ -828,40 +504,28 @@ async function _startAnalysis() {
   };
 
   try {
-    // Step 0 – Fetch (skip if HTML pasted)
-    renderSteps(0, done);
-    if (inputMode === 'url') {
-      html = await fetchPage(url);
-    }
+    if (inputMode === 'url') html = await fetchPage(url);
     done.add(0); renderSteps(1, done);
-
-    // Step 1 – Extract
     await sleep(200);
     const data = extractPageData(html, url);
     done.add(1); renderSteps(2, done);
-
-    // Step 2 – Rules
     await sleep(300);
     const aiResult = runRuleEngine(data, ctx);
     done.add(2); renderSteps(3, done);
-
-    // Step 3 – Score & prioritize
     await sleep(200);
     done.add(3); renderSteps(3, done);
 
     currentAnalysis = {
-      id: uuid(),
-      url, page_type: ctx.pageType, conversion_goal: ctx.convGoal, target_audience: ctx.audience,
+      id: uuid(), url,
+      page_type: ctx.pageType, conversion_goal: ctx.convGoal, target_audience: ctx.audience,
       extracted_data: data, ai_analysis: aiResult,
       overall_score: aiResult.overall_score, created_at: new Date().toISOString(),
     };
-
     filters = { area:'All', impact:'All', effort:'All', confidence:'All' };
     renderResults();
     showScreen('results');
   } catch(err) {
-    document.getElementById('error-msg').textContent = err.message || 'Unknown error.';
-    showScreen('error');
+    showError(err.message || 'Unknown error.');
   }
 }
 
@@ -872,27 +536,15 @@ function showError(msg) {
 
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
-// ─── Render ───────────────────────────────────────────────────────────────────
-const AREA_COLORS = {
-  'Messaging':'bg-blue-100 text-blue-800','CTA':'bg-purple-100 text-purple-800',
-  'Trust':'bg-green-100 text-green-800','UX Friction':'bg-orange-100 text-orange-800',
-  'Form':'bg-pink-100 text-pink-800','Social Proof':'bg-teal-100 text-teal-800',
-  'Risk Reduction':'bg-emerald-100 text-emerald-800',
-  'Information Architecture':'bg-cyan-100 text-cyan-800',
-  'Pricing':'bg-yellow-100 text-yellow-800','Objection Handling':'bg-red-100 text-red-800',
-};
+const AREA_COLORS = { 'Messaging':'bg-blue-100 text-blue-800','CTA':'bg-purple-100 text-purple-800','Trust':'bg-green-100 text-green-800','UX Friction':'bg-orange-100 text-orange-800','Form':'bg-pink-100 text-pink-800','Social Proof':'bg-teal-100 text-teal-800','Risk Reduction':'bg-emerald-100 text-emerald-800','Information Architecture':'bg-cyan-100 text-cyan-800','Pricing':'bg-yellow-100 text-yellow-800','Objection Handling':'bg-red-100 text-red-800' };
 const LEVEL_COLORS = { high:'text-red-600 bg-red-50', medium:'text-yellow-600 bg-yellow-50', low:'text-green-600 bg-green-50' };
 const LEVEL_DOTS   = { high:'🔴', medium:'🟡', low:'🟢' };
 
-function levelBadge(lvl) {
-  return `<span class="text-xs font-medium px-2 py-0.5 rounded-full capitalize ${LEVEL_COLORS[lvl]||''}">${lvl}</span>`;
-}
+function levelBadge(lvl) { return `<span class="text-xs font-medium px-2 py-0.5 rounded-full capitalize ${LEVEL_COLORS[lvl]||''}">${lvl}</span>`; }
 
 function renderResults() {
   const { ai_analysis:a, extracted_data:ex, url } = currentAnalysis;
-
   document.getElementById('result-url').textContent = url.length>60 ? url.slice(0,57)+'...' : url;
-
   const s=a.overall_score;
   const color = s>=70?'#16a34a':s>=45?'#d97706':'#dc2626';
   const lbl   = s>=70?'Good':s>=45?'Needs Work':'Critical Issues';
@@ -901,22 +553,10 @@ function renderResults() {
   document.getElementById('score-label').textContent = lbl;
   document.getElementById('score-label').style.cssText = `color:${color};background:${color}20`;
   document.getElementById('summary-text').textContent = a.summary;
-
-  // Area breakdown bars
   const areaCounts = {};
   a.hypotheses.forEach(h => { areaCounts[h.area]=(areaCounts[h.area]||0)+1; });
   const maxCount = Math.max(...Object.values(areaCounts), 1);
-  document.getElementById('score-bars').innerHTML = Object.entries(areaCounts)
-    .sort((a,b)=>b[1]-a[1]).slice(0,5)
-    .map(([area,count]) => `
-      <div class="flex items-center gap-2 text-xs">
-        <span class="w-36 text-gray-500 truncate">${area}</span>
-        <div class="flex-1 bg-gray-100 rounded-full h-1.5">
-          <div class="bg-indigo-400 h-1.5 rounded-full ice-bar" style="width:${(count/maxCount)*100}%"></div>
-        </div>
-        <span class="text-gray-400 w-4 text-right">${count}</span>
-      </div>`).join('');
-
+  document.getElementById('score-bars').innerHTML = Object.entries(areaCounts).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([area,count]) => `<div class="flex items-center gap-2 text-xs"><span class="w-36 text-gray-500 truncate">${area}</span><div class="flex-1 bg-gray-100 rounded-full h-1.5"><div class="bg-indigo-400 h-1.5 rounded-full" style="width:${(count/maxCount)*100}%"></div></div><span class="text-gray-400 w-4 text-right">${count}</span></div>`).join('');
   buildFilterBar();
   renderHypotheses();
   renderSnapshot(ex);
@@ -935,17 +575,8 @@ function getFiltered() {
 function buildFilterBar() {
   const AREAS  = ['All','Messaging','CTA','Trust','UX Friction','Form','Social Proof','Risk Reduction','Information Architecture','Pricing','Objection Handling'];
   const LEVELS = ['All','high','medium','low'];
-  const rows = [
-    {label:'Area',key:'area',opts:AREAS},{label:'Impact',key:'impact',opts:LEVELS},
-    {label:'Effort',key:'effort',opts:LEVELS},{label:'Confidence',key:'confidence',opts:LEVELS},
-  ];
-  document.getElementById('filter-rows').innerHTML = rows.map(r=>`
-    <div class="flex flex-wrap items-center gap-1.5">
-      <span class="text-xs font-medium text-gray-400 uppercase tracking-wide w-20 flex-shrink-0">${r.label}</span>
-      ${r.opts.map(o=>`<button onclick="setFilter('${r.key}','${o}')" id="filter-${r.key}-${o}"
-        class="px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${filters[r.key]===o?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-        ${o==='All'?'All':o.charAt(0).toUpperCase()+o.slice(1)}</button>`).join('')}
-    </div>`).join('');
+  const rows = [{label:'Area',key:'area',opts:AREAS},{label:'Impact',key:'impact',opts:LEVELS},{label:'Effort',key:'effort',opts:LEVELS},{label:'Confidence',key:'confidence',opts:LEVELS}];
+  document.getElementById('filter-rows').innerHTML = rows.map(r=>`<div class="flex flex-wrap items-center gap-1.5"><span class="text-xs font-medium text-gray-400 uppercase tracking-wide w-20 flex-shrink-0">${r.label}</span>${r.opts.map(o=>`<button onclick="setFilter('${r.key}','${o}')" id="filter-${r.key}-${o}" class="px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${filters[r.key]===o?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">${o==='All'?'All':o.charAt(0).toUpperCase()+o.slice(1)}</button>`).join('')}</div>`).join('');
   updateCount();
 }
 
@@ -956,7 +587,8 @@ function setFilter(key,val) {
     btn.className=btn.className.replace(/bg-indigo-600 text-white|bg-gray-100 text-gray-600 hover:bg-gray-200/g,'').trim();
     btn.classList.add(...(v===val?['bg-indigo-600','text-white']:['bg-gray-100','text-gray-600','hover:bg-gray-200']));
   });
-  document.getElementById('clear-filters-btn').classList.toggle('hidden',Object.values(filters).every(v=>v==='All'));
+  const hasActive = Object.values(filters).some(v=>v!=='All');
+  document.getElementById('clear-filters-btn').style.display = hasActive ? '' : 'none';
   updateCount();
   renderHypotheses();
 }
@@ -982,14 +614,12 @@ function setView(v) {
 function renderHypotheses() {
   const hyps=getFiltered(), c=document.getElementById('hypotheses-container');
   if(!hyps.length){ c.innerHTML=`<div class="text-center py-16 text-gray-400 text-sm">No hypotheses match the current filters.</div>`; return; }
-  c.innerHTML = currentView==='table' ? renderTable(hyps)
-    : `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${hyps.map((h,i)=>renderCard(h,i+1)).join('')}</div>`;
+  c.innerHTML = currentView==='table' ? renderTable(hyps) : `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${hyps.map((h,i)=>renderCard(h,i+1)).join('')}</div>`;
 }
 
 function renderCard(h, rank) {
   const ac=AREA_COLORS[h.area]||'bg-gray-100 text-gray-700';
-  return `
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow card-in">
+  return `<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
     <div class="p-4 space-y-3">
       <div class="flex items-start gap-3">
         <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold flex-shrink-0">${rank}</div>
@@ -1012,10 +642,8 @@ function renderCard(h, rank) {
       </div>
       <p class="text-sm text-gray-600 leading-relaxed">${esc(h.observed_issue)}</p>
     </div>
-    <button onclick="toggleCard('d-${h.id}',this)" class="w-full px-4 py-2 bg-gray-50 hover:bg-gray-100 text-xs font-medium text-gray-500 flex items-center justify-center gap-1 border-t border-gray-100">
-      ▼ Show full hypothesis
-    </button>
-    <div id="d-${h.id}" class="hidden p-4 space-y-4 border-t border-gray-100 bg-gray-50">
+    <button onclick="toggleCard('d-${h.id}',this)" class="w-full px-4 py-2 bg-gray-50 hover:bg-gray-100 text-xs font-medium text-gray-500 flex items-center justify-center gap-1 border-t border-gray-100">▼ Show full hypothesis</button>
+    <div id="d-${h.id}" style="display:none" class="p-4 space-y-4 border-t border-gray-100 bg-gray-50">
       <div><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Hypothesis</h4><p class="text-sm text-gray-700 italic leading-relaxed">${esc(h.hypothesis)}</p></div>
       <div><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Why It Matters</h4><p class="text-sm text-gray-700 leading-relaxed">${esc(h.why_it_matters)}</p></div>
       <div><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Recommended Test</h4><p class="text-sm text-gray-700 leading-relaxed">${esc(h.recommended_test)}</p></div>
@@ -1026,75 +654,33 @@ function renderCard(h, rank) {
 }
 
 function renderTable(hyps) {
-  return `<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-  <table class="min-w-full divide-y divide-gray-200 bg-white text-sm">
-    <thead class="bg-gray-50"><tr>
-      <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">#</th>
-      <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Title</th>
-      <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Area</th>
-      <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">ICE</th>
-      <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Impact</th>
-    </tr></thead>
-    <tbody class="divide-y divide-gray-100">
-      ${hyps.map(h=>`<tr class="hover:bg-indigo-50 cursor-pointer" onclick="setView('cards')">
-        <td class="px-4 py-3 text-gray-400 font-mono text-xs">${h.priority_rank}</td>
-        <td class="px-4 py-3"><div class="font-medium text-gray-900">${esc(h.title)}</div><div class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">${esc(h.observed_issue)}</div></td>
-        <td class="px-4 py-3 hidden sm:table-cell"><span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">${h.area}</span></td>
-        <td class="px-4 py-3 text-center"><span class="font-bold text-indigo-600">${h.ice_score}</span><span class="text-gray-300 text-xs">/10</span></td>
-        <td class="px-4 py-3 text-center hidden md:table-cell">${LEVEL_DOTS[h.expected_impact]||''}</td>
-      </tr>`).join('')}
-    </tbody>
-  </table></div>`;
+  return `<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm"><table class="min-w-full divide-y divide-gray-200 bg-white text-sm"><thead class="bg-gray-50"><tr><th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">#</th><th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Title</th><th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Area</th><th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">ICE</th><th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Impact</th></tr></thead><tbody class="divide-y divide-gray-100">${hyps.map(h=>`<tr class="hover:bg-indigo-50 cursor-pointer" onclick="setView('cards')"><td class="px-4 py-3 text-gray-400 font-mono text-xs">${h.priority_rank}</td><td class="px-4 py-3"><div class="font-medium text-gray-900">${esc(h.title)}</div><div class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">${esc(h.observed_issue)}</div></td><td class="px-4 py-3 hidden sm:table-cell"><span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">${h.area}</span></td><td class="px-4 py-3 text-center"><span class="font-bold text-indigo-600">${h.ice_score}</span><span class="text-gray-300 text-xs">/10</span></td><td class="px-4 py-3 text-center hidden md:table-cell">${LEVEL_DOTS[h.expected_impact]||''}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function toggleCard(id, btn) {
-  const hidden = document.getElementById(id).classList.toggle('hidden');
-  btn.textContent = hidden ? '▼ Show full hypothesis' : '▲ Show less';
+  const el = document.getElementById(id);
+  const hidden = el.style.display === 'none';
+  el.style.display = hidden ? '' : 'none';
+  btn.textContent = hidden ? '▲ Show less' : '▼ Show full hypothesis';
 }
 
 function renderSnapshot(ex) {
-  const fields=[['Title',ex.title||'—'],['H1',ex.h1[0]||'MISSING'],['Meta Desc',ex.meta_description||'MISSING'],
-    ['CTA Count',String(ex.cta_count)],['Word Count',String(ex.word_count)],['Has FAQ',ex.has_faq?'Yes':'No'],
-    ['Risk Reducers',ex.risk_reducers.join(', ')||'None'],['Trust Signals',ex.trust_indicators.length+' found'],
-    ['Social Proof',ex.social_proof.length+' items'],['Form Fields',ex.form_fields.join(', ')||'None'],
-    ['Pricing',ex.pricing_mentions.join(', ')||'None'],['Noindex',ex.has_noindex?'Yes':'No']];
-  document.getElementById('page-snapshot').innerHTML=fields.map(([l,v])=>
-    `<div><dt class="text-xs text-gray-400 uppercase tracking-wide">${l}</dt><dd class="text-sm text-gray-700 font-medium truncate" title="${esc(v)}">${esc(v)}</dd></div>`
-  ).join('');
+  const fields=[['Title',ex.title||'—'],['H1',ex.h1[0]||'MISSING'],['Meta Desc',ex.meta_description||'MISSING'],['CTA Count',String(ex.cta_count)],['Word Count',String(ex.word_count)],['Has FAQ',ex.has_faq?'Yes':'No'],['Risk Reducers',ex.risk_reducers.join(', ')||'None'],['Trust Signals',ex.trust_indicators.length+' found'],['Social Proof',ex.social_proof.length+' items'],['Form Fields',ex.form_fields.join(', ')||'None'],['Pricing',ex.pricing_mentions.join(', ')||'None'],['Noindex',ex.has_noindex?'Yes':'No']];
+  document.getElementById('page-snapshot').innerHTML=fields.map(([l,v])=>`<div><dt class="text-xs text-gray-400 uppercase tracking-wide">${l}</dt><dd class="text-sm text-gray-700 font-medium truncate" title="${esc(v)}">${esc(v)}</dd></div>`).join('');
 }
 
 async function copyCard(id) {
   const h=currentAnalysis.ai_analysis.hypotheses.find(x=>x.id===id); if(!h) return;
-  const t=[`# ${h.title}`,``,`**Area:** ${h.area}`,`**ICE Score:** ${h.ice_score}/10`,``,
-    `**Observed Issue:** ${h.observed_issue}`,``,`**Hypothesis:** ${h.hypothesis}`,``,
-    `**Why It Matters:** ${h.why_it_matters}`,``,`**Recommended Test:** ${h.recommended_test}`,
-    h.example_variant_copy?`\n**Example Copy:** ${h.example_variant_copy}`:'',``,
-    `**Evidence:** ${h.evidence_from_page}`].join('\n');
-  await navigator.clipboard.writeText(t);
+  const t=[`# ${h.title}`,``,`**Area:** ${h.area}`,`**ICE Score:** ${h.ice_score}/10`,``,`**Observed Issue:** ${h.observed_issue}`,``,`**Hypothesis:** ${h.hypothesis}`,``,`**Why It Matters:** ${h.why_it_matters}`,``,`**Recommended Test:** ${h.recommended_test}`,h.example_variant_copy?`\n**Example Copy:** ${h.example_variant_copy}`:'',``,`**Evidence:** ${h.evidence_from_page}`].join('\n');
+  try { await navigator.clipboard.writeText(t); } catch(_) { prompt('Copy this:', t); return; }
   const el=document.getElementById('ci-'+id);
-  if(el){ el.outerHTML=`<svg id="ci-${id}" class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
-    setTimeout(()=>{ const e=document.getElementById('ci-'+id); if(e) e.outerHTML=`<svg id="ci-${id}" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>`;},2000); }
+  if(el){ el.outerHTML=`<svg id="ci-${id}" class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`; setTimeout(()=>{ const e=document.getElementById('ci-'+id); if(e) e.outerHTML=`<svg id="ci-${id}" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>`;},2000); }
 }
 
 function exportMarkdown() {
   const {url,ai_analysis:a,extracted_data:ex,created_at}=currentAnalysis;
-  const lines=[`# CRO Hypothesis Backlog`,``,`**URL:** ${url}`,
-    `**Analyzed:** ${new Date(created_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}`,
-    `**Overall CRO Score:** ${a.overall_score}/100`,``,`## Summary`,``,a.summary,``,
-    `## Page Snapshot`,``,`| Field | Value |`,`|-------|-------|`,
-    `| Title | ${ex.title||'—'} |`,`| H1 | ${ex.h1[0]||'—'} |`,
-    `| CTA Count | ${ex.cta_count} |`,`| Word Count | ${ex.word_count} |`,``,
-    `## Hypotheses (${a.hypotheses.length})`,``];
-  a.hypotheses.forEach((h,i)=>{
-    lines.push(`### #${i+1} — ${h.title}`,``,`| | |`,`|---|---|`,
-      `| **Area** | ${h.area} |`,`| **ICE Score** | ${h.ice_score}/10 |`,
-      `| **Impact** | ${h.expected_impact} |`,`| **Confidence** | ${h.confidence} |`,
-      `| **Effort** | ${h.effort} |`,``,
-      `**Observed Issue:** ${h.observed_issue}`,``,`**Hypothesis:** ${h.hypothesis}`,``,
-      `**Why It Matters:** ${h.why_it_matters}`,``,`**Recommended Test:** ${h.recommended_test}`,``);
-    if(h.example_variant_copy) lines.push(`**Example Copy:** > ${h.example_variant_copy}`,``);
-    lines.push(`**Evidence:** ${h.evidence_from_page}`,``,`---`,``);
-  });
+  const lines=[`# CRO Hypothesis Backlog`,``,`**URL:** ${url}`,`**Analyzed:** ${new Date(created_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}`,`**Overall CRO Score:** ${a.overall_score}/100`,``,`## Summary`,``,a.summary,``,`## Page Snapshot`,``,`| Field | Value |`,`|-------|-------|`,`| Title | ${ex.title||'—'} |`,`| H1 | ${ex.h1[0]||'—'} |`,`| CTA Count | ${ex.cta_count} |`,`| Word Count | ${ex.word_count} |`,``,`## Hypotheses (${a.hypotheses.length})`,``];
+  a.hypotheses.forEach((h,i)=>{ lines.push(`### #${i+1} — ${h.title}`,``,`| | |`,`|---|---|`,`| **Area** | ${h.area} |`,`| **ICE Score** | ${h.ice_score}/10 |`,`| **Impact** | ${h.expected_impact} |`,`| **Confidence** | ${h.confidence} |`,`| **Effort** | ${h.effort} |`,``,`**Observed Issue:** ${h.observed_issue}`,``,`**Hypothesis:** ${h.hypothesis}`,``,`**Why It Matters:** ${h.why_it_matters}`,``,`**Recommended Test:** ${h.recommended_test}`,``); if(h.example_variant_copy) lines.push(`**Example Copy:** > ${h.example_variant_copy}`,``); lines.push(`**Evidence:** ${h.evidence_from_page}`,``,`---`,``); });
   const blob=new Blob([lines.join('\n')],{type:'text/markdown'});
   const a2=document.createElement('a');
   a2.href=URL.createObjectURL(blob);
@@ -1102,9 +688,7 @@ function exportMarkdown() {
   a2.click(); URL.revokeObjectURL(a2.href);
 }
 
-function esc(s){
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 </body>
 </html>
