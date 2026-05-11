@@ -58,7 +58,7 @@
         <input id="url-input" type="text" placeholder="https://yoursite.com/landing-page"
           class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           onkeydown="if(event.key==='Enter')startAnalysis()" />
-        <p class="text-xs text-gray-400">Fetched via <strong>allorigins.win</strong> proxy — only the URL fetch needs internet.</p>
+        <p class="text-xs text-gray-400">Fetched via corsproxy.io — only the URL fetch needs internet. If blocked, use "Paste HTML".</p>
       </div>
 
       <!-- HTML paste mode -->
@@ -127,7 +127,7 @@
 </div>
 
 <!-- ═══════════════ SCREEN: LOADING ═══════════════ -->
-<div id="screen-loading" class="hidden min-h-screen flex items-center justify-center p-6">
+<div id="screen-loading" style="display:none" class="min-h-screen flex items-center justify-center p-6">
   <div class="w-full max-w-sm space-y-6">
     <div class="text-center space-y-1">
       <p class="text-xs text-gray-400 uppercase tracking-wide">Analyzing</p>
@@ -139,7 +139,7 @@
 </div>
 
 <!-- ═══════════════ SCREEN: ERROR ═══════════════ -->
-<div id="screen-error" class="hidden min-h-screen flex items-center justify-center p-6">
+<div id="screen-error" style="display:none" class="min-h-screen flex items-center justify-center p-6">
   <div class="bg-white rounded-2xl border border-red-200 shadow-lg p-8 max-w-md w-full space-y-4 text-center">
     <div class="text-4xl">⚠️</div>
     <h2 class="font-bold text-gray-900 text-lg">Analysis Failed</h2>
@@ -151,7 +151,7 @@
 </div>
 
 <!-- ═══════════════ SCREEN: RESULTS ═══════════════ -->
-<div id="screen-results" class="hidden min-h-screen">
+<div id="screen-results" style="display:none" class="min-h-screen">
 
   <header class="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
     <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
@@ -225,17 +225,42 @@
 
 <!-- ═══════════════ JAVASCRIPT ═══════════════ -->
 <script>
+// ─── Global error handler ─────────────────────────────────────────────────────
+window.onerror = function(msg, src, line, col, err) {
+  const el = document.getElementById('error-msg');
+  const se = document.getElementById('screen-error');
+  if (el && se) {
+    el.textContent = 'JS Error: ' + msg + ' (line ' + line + ')';
+    ['input','loading','results'].forEach(s => {
+      const d = document.getElementById('screen-'+s);
+      if (d) d.style.display = 'none';
+    });
+    se.style.display = '';
+  }
+};
+
 // ─── State ───────────────────────────────────────────────────────────────────
 let currentAnalysis = null;
 let currentView = 'cards';
 let inputMode = 'url';
 let filters = { area:'All', impact:'All', effort:'All', confidence:'All' };
 
+// ─── UUID fallback (crypto.randomUUID not available in file:// context) ───────
+function uuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    try { return crypto.randomUUID(); } catch(_) {}
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 // ─── Screen & tabs ────────────────────────────────────────────────────────────
 function showScreen(name) {
-  ['input','loading','error','results'].forEach(s =>
-    document.getElementById('screen-'+s).classList.toggle('hidden', s !== name)
-  );
+  ['input','loading','error','results'].forEach(s => {
+    document.getElementById('screen-'+s).style.display = (s === name) ? '' : 'none';
+  });
 }
 
 function setInputMode(mode) {
@@ -268,12 +293,46 @@ function renderSteps(activeIdx, doneSet) {
 }
 
 // ─── Fetch via proxy ──────────────────────────────────────────────────────────
-async function fetchPage(url) {
-  const res  = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-  if (!res.ok) throw new Error(`Proxy error: HTTP ${res.status}`);
-  const data = await res.json();
-  if (!data.contents || data.contents.length < 100) throw new Error('Page appears empty or blocked by the proxy. Try pasting the HTML directly.');
-  return data.contents;
+async function fetchWithTimeout(url, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(timer);
+    return res;
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+async function fetchPage(targetUrl) {
+  // Try corsproxy.io first (returns raw HTML, no JSON wrapper)
+  try {
+    const res = await fetchWithTimeout(
+      'https://corsproxy.io/?' + encodeURIComponent(targetUrl), 12000
+    );
+    if (res.ok) {
+      const html = await res.text();
+      if (html && html.length > 100) return html;
+    }
+  } catch(_) {}
+
+  // Fallback: allorigins.win (returns JSON with .contents)
+  try {
+    const res = await fetchWithTimeout(
+      'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl), 15000
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.contents && data.contents.length > 100) return data.contents;
+    }
+  } catch(_) {}
+
+  throw new Error(
+    'Could not fetch the page. The site may block crawlers, or both proxies are unavailable. ' +
+    'Try the "Paste HTML" tab instead: open the page in your browser, right-click → View Page Source, and paste it here.'
+  );
 }
 
 // ─── HTML Extraction ─────────────────────────────────────────────────────────
@@ -791,7 +850,7 @@ async function _startAnalysis() {
     done.add(3); renderSteps(3, done);
 
     currentAnalysis = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       url, page_type: ctx.pageType, conversion_goal: ctx.convGoal, target_audience: ctx.audience,
       extracted_data: data, ai_analysis: aiResult,
       overall_score: aiResult.overall_score, created_at: new Date().toISOString(),
