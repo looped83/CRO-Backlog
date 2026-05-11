@@ -21,6 +21,7 @@
 </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 font-sans">
+<div id="js-err-banner" style="display:none;position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;font-size:13px;padding:8px 16px;z-index:9999;word-break:break-word;"></div>
 
 <!-- ═══════════════ SCREEN: INPUT ═══════════════ -->
 <div id="screen-input" class="min-h-screen flex flex-col items-center justify-center p-6">
@@ -62,7 +63,7 @@
       </div>
 
       <!-- HTML paste mode -->
-      <div id="mode-html" class="hidden space-y-2">
+      <div id="mode-html" style="display:none" class="space-y-2">
         <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Page HTML</label>
         <textarea id="html-input" rows="6" placeholder="Paste the full HTML source of the page here…"
           class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"></textarea>
@@ -73,7 +74,7 @@
         </div>
       </div>
 
-      <p id="input-error" class="text-xs text-red-500 hidden"></p>
+      <p id="input-error" style="display:none" class="text-xs text-red-500"></p>
 
       <!-- Optional context -->
       <details class="group">
@@ -114,7 +115,7 @@
         </div>
       </details>
 
-      <button onclick="startAnalysis()"
+      <button id="analyze-btn" onclick="startAnalysis()"
         class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold tracking-wide transition-colors shadow-sm">
         Analyze Page →
       </button>
@@ -193,7 +194,7 @@
         <span id="filter-count" class="text-xs text-gray-400"></span>
       </div>
       <div id="filter-rows" class="space-y-2"></div>
-      <button id="clear-filters-btn" onclick="clearFilters()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hidden">Clear all filters</button>
+      <button id="clear-filters-btn" onclick="clearFilters()" style="display:none" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Clear all filters</button>
     </div>
 
     <!-- Hypotheses -->
@@ -227,6 +228,8 @@
 <script>
 // ─── Global error handler ─────────────────────────────────────────────────────
 window.onerror = function(msg, src, line, col, err) {
+  const banner = document.getElementById('js-err-banner');
+  if (banner) { banner.textContent = 'JS Error: ' + msg + ' (line ' + line + ')'; banner.style.display = ''; }
   const el = document.getElementById('error-msg');
   const se = document.getElementById('screen-error');
   if (el && se) {
@@ -237,6 +240,11 @@ window.onerror = function(msg, src, line, col, err) {
     });
     se.style.display = '';
   }
+};
+window.onunhandledrejection = function(e) {
+  const msg = (e.reason && e.reason.message) ? e.reason.message : String(e.reason||'Unknown async error');
+  const banner = document.getElementById('js-err-banner');
+  if (banner) { banner.textContent = 'Async Error: ' + msg; banner.style.display = ''; }
 };
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -265,8 +273,8 @@ function showScreen(name) {
 
 function setInputMode(mode) {
   inputMode = mode;
-  document.getElementById('mode-url').classList.toggle('hidden', mode !== 'url');
-  document.getElementById('mode-html').classList.toggle('hidden', mode !== 'html');
+  document.getElementById('mode-url').style.display  = mode === 'url'  ? '' : 'none';
+  document.getElementById('mode-html').style.display = mode === 'html' ? '' : 'none';
   document.getElementById('tab-url').className  = 'pb-2 text-sm ' + (mode==='url'  ? 'tab-active' : 'text-gray-500 hover:text-gray-700');
   document.getElementById('tab-html').className = 'pb-2 text-sm ' + (mode==='html' ? 'tab-active' : 'text-gray-500 hover:text-gray-700');
 }
@@ -795,23 +803,26 @@ function runRuleEngine(data, ctx) {
 
 // ─── Main flow ────────────────────────────────────────────────────────────────
 async function startAnalysis() {
+  const btn = document.getElementById('analyze-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing…'; }
   try { await _startAnalysis(); } catch(e) { showError(e.message||String(e)); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Analyze Page →'; } }
 }
 async function _startAnalysis() {
   const errEl = document.getElementById('input-error');
-  errEl.classList.add('hidden');
+  errEl.style.display = 'none';
 
   let html='', url='';
 
   if (inputMode === 'url') {
     const raw = document.getElementById('url-input').value.trim();
-    if (!raw) { errEl.textContent='Please enter a URL.'; errEl.classList.remove('hidden'); return; }
+    if (!raw) { errEl.textContent='Please enter a URL.'; errEl.style.display=''; return; }
     url = raw.startsWith('http') ? raw : 'https://'+raw;
-    try { new URL(url); } catch { errEl.textContent='Invalid URL.'; errEl.classList.remove('hidden'); return; }
+    try { new URL(url); } catch(_) { errEl.textContent='Invalid URL.'; errEl.style.display=''; return; }
   } else {
     html = document.getElementById('html-input').value.trim();
     url  = document.getElementById('html-url').value.trim() || 'https://example.com';
-    if (!html) { errEl.textContent='Please paste the page HTML.'; errEl.classList.remove('hidden'); return; }
+    if (!html) { errEl.textContent='Please paste the page HTML above.'; errEl.style.display=''; return; }
     if (!url.startsWith('http')) url = 'https://'+url;
   }
 
@@ -956,7 +967,7 @@ function setFilter(key,val) {
     btn.className=btn.className.replace(/bg-indigo-600 text-white|bg-gray-100 text-gray-600 hover:bg-gray-200/g,'').trim();
     btn.classList.add(...(v===val?['bg-indigo-600','text-white']:['bg-gray-100','text-gray-600','hover:bg-gray-200']));
   });
-  document.getElementById('clear-filters-btn').classList.toggle('hidden',Object.values(filters).every(v=>v==='All'));
+  document.getElementById('clear-filters-btn').style.display = Object.values(filters).every(v=>v==='All') ? 'none' : '';
   updateCount();
   renderHypotheses();
 }
@@ -1015,7 +1026,7 @@ function renderCard(h, rank) {
     <button onclick="toggleCard('d-${h.id}',this)" class="w-full px-4 py-2 bg-gray-50 hover:bg-gray-100 text-xs font-medium text-gray-500 flex items-center justify-center gap-1 border-t border-gray-100">
       ▼ Show full hypothesis
     </button>
-    <div id="d-${h.id}" class="hidden p-4 space-y-4 border-t border-gray-100 bg-gray-50">
+    <div id="d-${h.id}" style="display:none" class="p-4 space-y-4 border-t border-gray-100 bg-gray-50">
       <div><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Hypothesis</h4><p class="text-sm text-gray-700 italic leading-relaxed">${esc(h.hypothesis)}</p></div>
       <div><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Why It Matters</h4><p class="text-sm text-gray-700 leading-relaxed">${esc(h.why_it_matters)}</p></div>
       <div><h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Recommended Test</h4><p class="text-sm text-gray-700 leading-relaxed">${esc(h.recommended_test)}</p></div>
@@ -1048,8 +1059,10 @@ function renderTable(hyps) {
 }
 
 function toggleCard(id, btn) {
-  const hidden = document.getElementById(id).classList.toggle('hidden');
-  btn.textContent = hidden ? '▼ Show full hypothesis' : '▲ Show less';
+  const el = document.getElementById(id);
+  const hidden = el.style.display === 'none';
+  el.style.display = hidden ? '' : 'none';
+  btn.textContent = hidden ? '▲ Show less' : '▼ Show full hypothesis';
 }
 
 function renderSnapshot(ex) {
@@ -1070,7 +1083,7 @@ async function copyCard(id) {
     `**Why It Matters:** ${h.why_it_matters}`,``,`**Recommended Test:** ${h.recommended_test}`,
     h.example_variant_copy?`\n**Example Copy:** ${h.example_variant_copy}`:'',``,
     `**Evidence:** ${h.evidence_from_page}`].join('\n');
-  await navigator.clipboard.writeText(t);
+  try { await navigator.clipboard.writeText(t); } catch(_) { prompt('Copy this text:', t); return; }
   const el=document.getElementById('ci-'+id);
   if(el){ el.outerHTML=`<svg id="ci-${id}" class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
     setTimeout(()=>{ const e=document.getElementById('ci-'+id); if(e) e.outerHTML=`<svg id="ci-${id}" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>`;},2000); }
